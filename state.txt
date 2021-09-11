@@ -1,0 +1,73 @@
+<TtcState>
+  <TtcRng value="43517" />
+  <TtcRotatingBlock _timerMax="125" _timer="31" />
+  <TtcRotatingBlock _timerMax="5" _timer="16" />
+  <TtcRotatingBlock _timerMax="25" _timer="6" />
+  <TtcRotatingBlock _timerMax="45" _timer="51" />
+  <TtcRotatingBlock _timerMax="65" _timer="71" />
+  <TtcRotatingBlock _timerMax="25" _timer="61" />
+  <TtcRotatingTriangularPrism _timerMax="125" _timer="126" />
+  <TtcRotatingTriangularPrism _timerMax="125" _timer="26" />
+  <TtcPendulum _accelerationDirection="1" _angle="-7155" _angularVelocity="26" _accelerationMagnitude="13" _waitingTimer="0" />
+  <TtcPendulum _accelerationDirection="1" _angle="-1993" _angularVelocity="390" _accelerationMagnitude="13" _waitingTimer="0" />
+  <TtcPendulum _accelerationDirection="-1" _angle="5822" _angularVelocity="130" _accelerationMagnitude="13" _waitingTimer="0" />
+  <TtcPendulum _accelerationDirection="1" _angle="-9159" _angularVelocity="84" _accelerationMagnitude="42" _waitingTimer="0" />
+  <TtcTreadmill _subType="0" _currentSpeed="0" _targetSpeed="-50" _timerMax="30" _timer="5" />
+  <TtcTreadmill _subType="1" _currentSpeed="0" _targetSpeed="0" _timerMax="0" _timer="142871" />
+  <TtcTreadmill _subType="1" _currentSpeed="0" _targetSpeed="0" _timerMax="0" _timer="142871" />
+  <TtcTreadmill _subType="1" _currentSpeed="0" _targetSpeed="0" _timerMax="0" _timer="142871" />
+  <TtcTreadmill _subType="1" _currentSpeed="0" _targetSpeed="0" _timerMax="0" _timer="142871" />
+  <TtcPusher _timerMax="100" _countdown="40" _state="1" _timer="39" />
+  <TtcPusher _timerMax="55" _countdown="0" _state="3" _timer="82" />
+  <TtcPusher _timerMax="12" _countdown="49" _state="1" _timer="42" />
+  <TtcPusher _timerMax="55" _countdown="0" _state="3" _timer="21" />
+  <TtcPusher _timerMax="100" _countdown="0" _state="3" _timer="5" />
+  <TtcPusher _timerMax="1" _countdown="0" _state="2" _timer="7" />
+  <TtcPusher _timerMax="100" _countdown="0" _state="0" _timer="87" />
+  <TtcPusher _timerMax="55" _countdown="0" _state="3" _timer="5" />
+  <TtcPusher _timerMax="55" _countdown="0" _state="0" _timer="51" />
+  <TtcPusher _timerMax="1" _countdown="0" _state="3" _timer="80" />
+  <TtcPusher _timerMax="1" _countdown="0" _state="3" _timer="63" />
+  <TtcPusher _timerMax="12" _countdown="0" _state="3" _timer="6" />
+  <TtcCog _angle="10138" _currentAngularVelocity="150" _targetAngularVelocity="-200" />
+  <TtcCog _angle="988" _currentAngularVelocity="600" _targetAngularVelocity="800" />
+  <TtcCog _angle="31328" _currentAngularVelocity="-350" _targetAngularVelocity="-600" />
+  <TtcCog _angle="37934" _currentAngularVelocity="-300" _targetAngularVelocity="1200" />
+  <TtcCog _angle="46558" _currentAngularVelocity="900" _targetAngularVelocity="1000" />
+  <TtcSpinningTriangle _angle="56050" _currentAngularVelocity="150" _targetAngularVelocity="0" />
+  <TtcSpinningTriangle _angle="20572" _currentAngularVelocity="-950" _targetAngularVelocity="-1000" />
+  <TtcPitBlock _height="259" _verticalSpeed="-9" _direction="1" _timerMax="110" _timer="110" />
+  <TtcHand _angle="33704" _timerMax="50" _targetAngle="33704" _displacement="-1092" _directionCountdown="173" _timer="36" />
+  <TtcHand _angle="5344" _timerMax="50" _targetAngle="5344" _displacement="-1092" _directionCountdown="168" _timer="32" />
+  <TtcSpinner _angle="64392" _direction="1" _timerMax="30" _timer="14" />
+  <TtcSpinner _angle="60728" _direction="-1" _timerMax="30" _timer="24" />
+  <TtcSpinner _angle="62856" _direction="-1" _timerMax="30" _timer="26" />
+  <TtcSpinner _angle="2280" _direction="1" _timerMax="120" _timer="116" />
+  <TtcSpinner _angle="50632" _direction="-1" _timerMax="90" _timer="72" />
+  <TtcSpinner _angle="54280" _direction="-1" _timerMax="120" _timer="6" />
+  <TtcSpinner _angle="12464" _direction="1" _timerMax="90" _timer="81" />
+  <TtcSpinner _angle="14896" _direction="1" _timerMax="60" _timer="41" />
+  <TtcSpinner _angle="56368" _direction="-1" _timerMax="120" _timer="115" />
+  <TtcSpinner _angle="176" _direction="1" _timerMax="90" _timer="61" />
+  <TtcSpinner _angle="36592" _direction="-1" _timerMax="120" _timer="13" />
+  <TtcSpinner _angle="5824" _direction="-1" _timerMax="90" _timer="65" />
+  <TtcSpinner _angle="12000" _direction="-1" _timerMax="60" _timer="31" />
+  <TtcSpinner _angle="38464" _direction="1" _timerMax="120" _timer="37" />
+  <TtcWheel _angle="42016" _timerMax="50" _targetAngle="42016" _displacement="3276" _directionCountdown="0" _timer="42" />
+  <TtcWheel _angle="12580" _timerMax="50" _targetAngle="12580" _displacement="-3276" _directionCountdown="81" _timer="45" />
+  <TtcWheel _angle="35416" _timerMax="50" _targetAngle="35416" _displacement="-3276" _directionCountdown="97" _timer="32" />
+  <TtcWheel _angle="48616" _timerMax="50" _targetAngle="48616" _displacement="3276" _directionCountdown="49" _timer="42" />
+  <TtcWheel _angle="58744" _timerMax="30" _targetAngle="58268" _displacement="-3276" _directionCountdown="23" _timer="15" />
+  <TtcWheel _angle="40704" _timerMax="30" _targetAngle="38628" _displacement="-3276" _directionCountdown="84" _timer="7" />
+  <TtcElevator _height="529" _verticalSpeed="6" _direction="1" _timerMax="180" _timer="120" />
+  <TtcElevator _height="-1292" _verticalSpeed="6" _direction="1" _timerMax="150" _timer="106" />
+  <TtcCog _angle="37528" _currentAngularVelocity="50" _targetAngularVelocity="-800" />
+  <TtcTreadmill _subType="2" _currentSpeed="0" _targetSpeed="0" _timerMax="0" _timer="142871" />
+  <TtcTreadmill _subType="3" _currentSpeed="0" _targetSpeed="0" _timerMax="0" _timer="142871" />
+  <TtcThwomp _height="6482" _verticalSpeed="0" _timerMax="23" _state="0" _timer="29" />
+  <TtcAmp _state="2" _angle="60730" />
+  <TtcAmp _state="2" _angle="49007" />
+  <TtcBobomb _blinkingTimer="0" _withinMarioRange="0" />
+  <TtcBobomb _blinkingTimer="0" _withinMarioRange="1" />
+  <TtcDust />
+</TtcState>

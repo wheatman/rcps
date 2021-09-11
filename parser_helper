@@ -1,0 +1,1 @@
+cat state.txt | sed 's/[a-zA-Z_="<>/]*//g' | sed 's/^ \+\| \+$//g'  |sed 's/ /,/g' | sed 's/^/{/g' | sed 's/$/},/g'

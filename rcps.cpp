@@ -1209,13 +1209,13 @@ std::pair<int, int> steps_still_for_state_add_remove_dust(
     rngValue = rngSeeds[i];
     // wait some amount of frames making dust for some portion of them
     for (const bool dust : dust_frames) {
+      advanceobjects(&states);
       if (dust) {
         pollRNG();
         pollRNG();
         pollRNG();
         pollRNG();
       }
-      advanceobjects(&states);
     }
     cogstill = 1;
     int a = 0;

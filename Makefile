@@ -11,7 +11,10 @@ CFLAGS += -fsanitize=undefined,address -fno-omit-frame-pointer
 endif
 
 
-all: basic
+all: rcps
  
-basic: rcps.cpp
+rcps: rcps.cpp
 	$(CXX) $(CFLAGS) -o $@ rcps.cpp
+
+clean:
+	rm -f rcps

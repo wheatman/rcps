@@ -796,7 +796,7 @@ void randomizearray(objects_t *inputstate) {
   }
 }
 
-void printobjectstates(objects_t *inputstate) {
+void printobjectstates(const objects_t *const inputstate) {
   int a;
   for (a = 0; a < 6; a++) {
     printf("Rotating Block %i max: %i\n", a + 1,
@@ -1170,7 +1170,9 @@ void check_small_changes(int best_so_far, objects_t *inputstate,
   }
 }
 
-void runsimulation() {
+// pick a random state for each search and find a new state with a small random
+// change to that state
+void runsimulation_randomstates() {
   printf("Running\n");
   // initialize_rand();
   objects_t *currentstartingarray =
@@ -1190,10 +1192,159 @@ void runsimulation() {
   free(currentstartingarray);
 }
 
-int main(int argc, char **argv) {
+std::pair<int, int> steps_still_for_state_add_remove_dust(
+    const objects_t *const currentstartingarray,
+    const std::vector<bool> &dust_frames, int seed_idx = -1) {
+  objects_t states;
+  int max_still = 0;
+  int seed_idx_for_max_still = 0;
+  int start = 0;
+  int end = num_seeds;
+  if (seed_idx != -1) {
+    start = std::max(seed_idx - 5, 0);
+    end = std::min(num_seeds, seed_idx + 5);
+  }
+  for (int i = start; i < end; i++) {
+    memcpy(&states, currentstartingarray, sizeof(objects_t));
+    rngValue = rngSeeds[i];
+    // wait some amount of frames making dust for some portion of them
+    for (const bool dust : dust_frames) {
+      if (dust) {
+        pollRNG();
+        pollRNG();
+        pollRNG();
+        pollRNG();
+      }
+      advanceobjects(&states);
+    }
+    cogstill = 1;
+    int a = 0;
+    for (a = 0; a < 1200; a++) {
+      advanceobjects(&states);
+      if (cogstill == 0) {
+        break;
+      }
+    }
+
+    if (cogstill == 1) {
+      printf("cog was still the whole time !!!\n");
+      printobjectstates(currentstartingarray);
+      exit(0);
+      break;
+    }
+    if (a > max_still) {
+      max_still = a;
+      seed_idx_for_max_still = i;
+    }
+  }
+  return {max_still, seed_idx_for_max_still};
+}
+
+void print_waiting_frames(const std::vector<bool> &dust_frames) {
+  printf("dust vector is:");
+  for (auto dust : dust_frames) {
+    if (dust) {
+      printf("+");
+    } else {
+      printf("-");
+    }
+  }
+  printf("\r");
+}
+void check_small_changes_add_remove_dust(int best_so_far,
+                                         const objects_t *const inputstate,
+                                         int steps_since_last_increase,
+                                         int depth, int seed_idx,
+                                         std::vector<bool> &dust_frames);
+
+void check_state_and_recurse_add_remove_dust(int best_so_far,
+                                             const objects_t *const inputstate,
+                                             int steps_since_last_increase,
+                                             int depth, int seed_idx,
+                                             std::vector<bool> &dust_frames) {
+  print_waiting_frames(dust_frames);
+  auto p =
+      steps_still_for_state_add_remove_dust(inputstate, dust_frames, seed_idx);
+  int length = p.first;
+  int best_seed_idx = p.second;
+  states_checked += 1;
+  if (length > best_so_far) {
+    most_frames_lasted = std::max(most_frames_lasted, length);
+    printf("\nnew best on path = %d, states_checked = %ld, seed_idx = %d, "
+           "depth = %d\n",
+           length, states_checked, best_seed_idx, depth);
+    check_small_changes_add_remove_dust(length, inputstate, 0, depth + 1,
+                                        best_seed_idx, dust_frames);
+  } else if (steps_since_last_increase < 10) {
+    check_small_changes_add_remove_dust(best_so_far, inputstate,
+                                        steps_since_last_increase + 1,
+                                        depth + 1, best_seed_idx, dust_frames);
+  }
+}
+
+void check_small_changes_add_remove_dust(int best_so_far,
+                                         const objects_t *const inputstate,
+                                         int steps_since_last_increase,
+                                         int depth, int seed_idx,
+                                         std::vector<bool> &dust_frames) {
+  // try flipping each frame
+  for (size_t i = 0; i < dust_frames.size(); i++) {
+    dust_frames[i] = !dust_frames[i];
+    check_state_and_recurse_add_remove_dust(best_so_far, inputstate,
+                                            steps_since_last_increase, depth,
+                                            seed_idx, dust_frames);
+    dust_frames[i] = !dust_frames[i];
+  }
+  // try adding a frame either way
+  dust_frames.push_back(true);
+  check_state_and_recurse_add_remove_dust(best_so_far, inputstate,
+                                          steps_since_last_increase, depth,
+                                          seed_idx, dust_frames);
+  dust_frames.pop_back();
+  dust_frames.push_back(false);
+  check_state_and_recurse_add_remove_dust(best_so_far, inputstate,
+                                          steps_since_last_increase, depth,
+                                          seed_idx, dust_frames);
+  dust_frames.pop_back();
+  // try removing a frame
+  bool back = dust_frames.back();
+  dust_frames.pop_back();
+  check_state_and_recurse_add_remove_dust(best_so_far, inputstate,
+                                          steps_since_last_increase, depth,
+                                          seed_idx, dust_frames);
+  dust_frames.push_back(back);
+  // leave it as you found it
+}
+
+// start with state, and a number of frames to stay wait
+// make a new state by changing a state from nothing to dust, dust to nothing,
+// or adding or removing a frame to wait
+void runsimulation_add_remove_dust() {
+  printf("Running\n");
+  // initialize_rand();
+  objects_t *currentstartingarray =
+      (objects_t *)malloc(sizeof(*currentstartingarray));
+  // TODO: idealy this would just start at the true starting frame
+  randomizearray(currentstartingarray);
+
+  int frames_to_wait = 100;
+  std::vector<bool> dust_frames(frames_to_wait);
+  auto p =
+      steps_still_for_state_add_remove_dust(currentstartingarray, dust_frames);
+  int length = p.first;
+  int seed_idx = p.second;
+  states_checked += 1;
+  printf("start is %d, seed_idx = %ld\n", length, states_checked);
+  check_small_changes_add_remove_dust(length, currentstartingarray, 0, 1,
+                                      seed_idx, dust_frames);
+
+  free(currentstartingarray);
+}
+
+int main() {
   for (int i = 0; i < num_seeds; i++) {
     rngSeeds[i] = pollRNG();
   }
-  runsimulation();
+  runsimulation_add_remove_dust();
   return 0;
 }

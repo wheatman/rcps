@@ -1219,8 +1219,7 @@ void print_waiting_frames(const std::vector<bool> &dust_frames) {
   }
 }
 
-int steps_still_for_state_add_remove_dust(
-    const std::vector<bool> &dust_frames) {
+int steps_still_for_state_add_remove_dust(std::vector<bool> &dust_frames) {
   objects_t states;
   // gotten from pannen as the starting rng seed, update if nessasary
   rngValue = 43517;
@@ -1235,11 +1234,17 @@ int steps_still_for_state_add_remove_dust(
     }
   }
   states.rcpscog.small_enough_movement_so_far = 1;
+  // if the target is bad skip this state
   if (states.rcpscog.targetAngularVelocity > 200 ||
-      states.rcpscog.targetAngularVelocity < -200 ||
-      states.rcpscog.currentAngularVelocity > 200 ||
-      states.rcpscog.currentAngularVelocity < -200) {
+      states.rcpscog.targetAngularVelocity < -200) {
     states.rcpscog.small_enough_movement_so_far = 0;
+  }
+  // if the target is good, but the current is bad, wait untill it is good, and
+  // then try that
+  while (states.rcpscog.currentAngularVelocity > 200 ||
+         states.rcpscog.currentAngularVelocity < -200) {
+    advanceobjects(&states);
+    dust_frames.push_back(false);
   }
 
   int a = 0;
@@ -1269,7 +1274,7 @@ void check_small_changes_add_remove_dust(int best_so_far,
 void check_state_and_recurse_add_remove_dust(int best_so_far,
                                              int steps_since_last_increase,
                                              int depth,
-                                             std::vector<bool> &dust_frames,
+                                             std::vector<bool> dust_frames,
                                              int bad_steps_allowed) {
   print_waiting_frames(dust_frames);
   int length = steps_still_for_state_add_remove_dust(dust_frames);

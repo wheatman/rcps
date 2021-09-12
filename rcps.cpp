@@ -1,5 +1,5 @@
-//  clang++ -std=c++17 -lm -O3 -march=native -o run  mariocode2.cpp
-//  (on Apple M1) clang++ -std=c++17 -lm -O3 -o run  mariocode2.cpp
+//  clang++ -std=c++17 -lm -O3 -march=native -o run  rcps.cpp
+//  (on Apple M1) clang++ -std=c++17 -lm -O3 -o run  rcps.cpp
 #include <cmath>
 #include <map>
 #include <math.h>
@@ -960,6 +960,7 @@ std::pair<int, int> steps_still_for_state(objects_t *currentstartingarray,
 long states_checked = 0;
 int most_frames_lasted = 0;
 double initial_temperature = 0.125;
+int ticker = 0;
 
 void check_small_changes(int best_so_far, objects_t *inputstate,
                          int steps_since_last_increase, int depth = 0,
@@ -979,18 +980,22 @@ void check_state_and_recurse(int best_so_far, objects_t *inputstate,
            length, states_checked, best_seed_idx, depth);
     check_small_changes(length, inputstate, 0, depth + 1, best_seed_idx);
   } else if (false && steps_since_last_increase < 10) {
-    // Simulated Annealing: A worse point is accepted probabilistically.
+    // Simulated Annealing: A worse point is accepted probabilistically. 
     // double temperature = initial_temperature / pow(2,length);
     double temperature = initial_temperature / (length + 1);
     double criterion =
         exp((best_so_far - length) /
             temperature); // got a seg fault when I used length instead of depth
     double rnd = randbetween(0.0, 1.0); // between 0 and 1
-    if (rnd < criterion) {
+    if (rnd < criterion && ticker > 0) {
+      ticker--;
       check_small_changes(best_so_far, inputstate,
                           steps_since_last_increase + 1, depth + 1,
                           best_seed_idx);
-    } /* else if (best_so_far > 120 && length == best_so_far && last_increase) {
+    } else{
+      ticker++;
+    }
+    /* else if (best_so_far > 120 && length == best_so_far && last_increase) {
    // only allow neutral moves after the first 120 frames
    check_small_changes(best_so_far, inputstate, false, depth + 1,
  best_seed_idx);

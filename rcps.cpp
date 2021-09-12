@@ -1276,14 +1276,15 @@ void check_state_and_recurse_add_remove_dust(int best_so_far,
                                              int depth,
                                              std::vector<bool> dust_frames,
                                              int bad_steps_allowed) {
-  print_waiting_frames(dust_frames);
+  // print_waiting_frames(dust_frames);
   int length = steps_still_for_state_add_remove_dust(dust_frames);
   states_checked += 1;
   if (length > best_so_far) {
     most_frames_lasted = std::max(most_frames_lasted, length);
+    print_waiting_frames(dust_frames);
     printf("\nnew best on path = %d, states_checked = %ld, "
-           "depth = %d\n",
-           length, states_checked, depth);
+           "depth = %d, most_frames_lasted overall = %d\n",
+           length, states_checked, depth, most_frames_lasted);
     check_small_changes_add_remove_dust(length, 0, depth + 1, dust_frames,
                                         bad_steps_allowed);
   } else if (steps_since_last_increase < bad_steps_allowed) {

@@ -960,7 +960,7 @@ std::pair<int, int> steps_still_for_state(objects_t *currentstartingarray,
 long states_checked = 0;
 int most_frames_lasted = 0;
 double initial_temperature = 0.125;
-int ticker = 0;
+int ticker = 10;
 
 void check_small_changes(int best_so_far, objects_t *inputstate,
                          int steps_since_last_increase, int depth = 0,
@@ -987,7 +987,7 @@ void check_state_and_recurse(int best_so_far, objects_t *inputstate,
         exp((best_so_far - length) /
             temperature); // got a seg fault when I used length instead of depth
     double rnd = randbetween(0.0, 1.0); // between 0 and 1
-    if (rnd < criterion && ticker > 0) {
+    if (ticker > 0 && rnd < criterion) {
       ticker--;
       check_small_changes(best_so_far, inputstate,
                           steps_since_last_increase + 1, depth + 1,

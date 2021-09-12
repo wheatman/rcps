@@ -1,5 +1,6 @@
-//  clang++ -std=c++17 -lm -O3 -march=native -o run  mariocode.cpp
-//  (on Apple M1) clang++ -std=c++17 -lm -O3 -o run  mariocode.cpp
+//  clang++ -std=c++17 -lm -O3 -march=native -o run  mariocode2.cpp
+//  (on Apple M1) clang++ -std=c++17 -lm -O3 -o run  mariocode2.cpp
+#include <cmath>
 #include <map>
 #include <math.h>
 #include <random>
@@ -8,10 +9,6 @@
 #include <string.h>
 #include <time.h>
 #include <vector>
-
-/* rcps dfs-based solver. Simulated annealing has been integrated, but
-is currently switched off (see line 965) due to a segmentation fault
-caused by too much recursion */
 
 /* basic max function. called intmax to distingish from max variable */
 int intmax(int a, int b) { return (a > b ? a : b); }
@@ -26,6 +23,9 @@ int normalize(int angle) { return (((angle % 65536) + 65536) % 65536); }
 std::random_device rd;
 // Standard mersenne_twister_engine seeded with rd()
 std::mt19937 gen(rd());
+
+/* Intializes pseudorandom number generator */
+// void initialize_rand() { srand((unsigned)time(NULL)); }
 
 /* Generates integer between two values, inclusive*/
 int randbetween(int a, int b) {
@@ -114,7 +114,6 @@ unsigned short rng_function(unsigned short input) {
 }
 
 unsigned short rngValue = 0;
-int cogstill = 1;
 
 /* calls and updates the rng value */
 int pollRNG() {
@@ -160,6 +159,7 @@ typedef struct cog_t {
   int currentAngularVelocity; // = -1200, -1150, ... , 1150, 1200
   int targetAngularVelocity;  // = -1200, -1000, ... , 1000, 1200
   int last_target = 0;
+  int small_enough_movement_so_far = true;
 } cog_t;
 
 void cog(cog_t *c) {
@@ -187,7 +187,7 @@ void rcpscog(cog_t *c) {
     int magnitude =
         (pollRNG() % 7) * 200; // = 0, 200, 400, 600, 800, 1000, 1200
     if (magnitude > 200) {
-      cogstill = 0;
+      c->small_enough_movement_so_far = 0;
       c->last_target = 0;
       return;
     }
@@ -198,7 +198,7 @@ void rcpscog(cog_t *c) {
     if (c->last_target != 0 && magnitude != 0 &&
         c->last_target != -1 * c->targetAngularVelocity) {
       c->last_target = 0;
-      cogstill = 0;
+      c->small_enough_movement_so_far = 0;
     }
   }
 }
@@ -639,24 +639,40 @@ void wheel(wheel_t *w) {
   }
 }
 
-typedef struct objects_t {
-  rotatingblock_t rotating_blocks[6];
-  rotatingtriangularprism_t rotatingtriangularprisms[2];
-  pendulum_t pendulums[4];
-  treadmill_t treadmill;
-  pusher_t pushers[12];
-  cog_t rcpscog;
-  cog_t cogs[4];
-  spinningtriangle_t spinningtriangles[2];
-  pitblock_t pitblock;
-  hand_t hands[2];
-  spinner_t spinners[14];
-  wheel_t wheels[6];
-  elevator_t elevators[2];
-  cog_t sixthcog;
-  thwomp_t thwomp;
-  bobomb_t bobombs[2];
-} objects_t;
+// got initial state from pannen, update if nessesary
+using objects_t = struct objects_t {
+  rotatingblock_t rotating_blocks[6] = {{125, 31}, {5, 16},  {25, 6},
+                                        {45, 51},  {65, 71}, {25, 61}};
+  rotatingtriangularprism_t rotatingtriangularprisms[2] = {{125, 126},
+                                                           {125, 26}};
+  pendulum_t pendulums[4] = {{1, -7155, 26, 13, 0},
+                             {1, -1993, 390, 13, 0},
+                             {-1, 5822, 130, 13, 0},
+                             {1, -9159, 84, 42, 0}};
+  treadmill_t treadmill = {0, -50, 30, 5};
+  pusher_t pushers[12] = {{100, 40, 1, 39}, {55, 0, 3, 82}, {12, 49, 1, 42},
+                          {55, 0, 3, 21},   {100, 0, 3, 5}, {1, 0, 2, 7},
+                          {100, 0, 0, 87},  {55, 0, 3, 5},  {55, 0, 0, 51},
+                          {1, 0, 3, 80},    {1, 0, 3, 63},  {12, 0, 3, 6}};
+  cog_t rcpscog = {150, -200};
+  cog_t cogs[4] = {{600, 800}, {-350, -600}, {-300, 1200}, {900, 1000}};
+  spinningtriangle_t spinningtriangles[2] = {{150, 0}, {-950, -1000}};
+  pitblock_t pitblock = {259, -9, 1, 110, 110};
+  hand_t hands[2] = {{33704, 50, 33704, -1092, 173, 36},
+                     {5344, 50, 5344, -1092, 168, 32}};
+  spinner_t spinners[14] = {
+      {1, 30, 14},   {-1, 30, 24}, {-1, 30, 26}, {1, 120, 116},  {-1, 90, 72},
+      {-1, 120, 6},  {1, 90, 81},  {1, 60, 41},  {-1, 120, 115}, {1, 90, 61},
+      {-1, 120, 13}, {-1, 90, 65}, {-1, 60, 31}, {1, 120, 37}};
+  wheel_t wheels[6] = {
+      {42016, 50, 42016, 3276, 0, 42},   {12580, 50, 12580, -3276, 81, 45},
+      {35416, 50, 35416, -3276, 97, 32}, {48616, 50, 48616, 3276, 49, 42},
+      {58744, 30, 58268, -3276, 23, 15}, {40704, 30, 38628, -3276, 84, 7}};
+  elevator_t elevators[2] = {{180, 120}, {150, 106}};
+  cog_t sixthcog = {50, -800};
+  thwomp_t thwomp = {6482, 0, 23, 0, 29};
+  bobomb_t bobombs[2] = {{0}, {0}};
+};
 
 /* moves objects forward one frame */
 void advanceobjects(objects_t *objects) {
@@ -675,7 +691,7 @@ void advanceobjects(objects_t *objects) {
     pusher(&objects->pushers[i]);
   }
   rcpscog(&objects->rcpscog);
-  if (cogstill == 0) {
+  if (objects->rcpscog.small_enough_movement_so_far == 0) {
     return;
   }
   for (i = 0; i < 4; i++) {
@@ -796,7 +812,7 @@ void randomizearray(objects_t *inputstate) {
   }
 }
 
-void printobjectstates(objects_t *inputstate) {
+void printobjectstates(const objects_t *const inputstate) {
   int a;
   for (a = 0; a < 6; a++) {
     printf("Rotating Block %i max: %i\n", a + 1,
@@ -918,16 +934,16 @@ std::pair<int, int> steps_still_for_state(objects_t *currentstartingarray,
   for (int i = start; i < end; i++) {
     memcpy(&states, currentstartingarray, sizeof(objects_t));
     rngValue = rngSeeds[i];
-    cogstill = 1;
+    states.rcpscog.small_enough_movement_so_far = 1;
     int a = 0;
     for (a = 0; a < 1200; a++) {
       advanceobjects(&states);
-      if (cogstill == 0) {
+      if (states.rcpscog.small_enough_movement_so_far == 0) {
         break;
       }
     }
 
-    if (cogstill == 1) {
+    if (states.rcpscog.small_enough_movement_so_far == 1) {
       printf("cog was still the whole time !!!\n");
       printobjectstates(currentstartingarray);
       exit(0);
@@ -942,47 +958,52 @@ std::pair<int, int> steps_still_for_state(objects_t *currentstartingarray,
 }
 
 long states_checked = 0;
-int best_frame_length = 0;
+int most_frames_lasted = 0;
 double initial_temperature = 0.125;
-int bad_calls = 0;
 
 void check_small_changes(int best_so_far, objects_t *inputstate,
-                         bool last_increase, int depth = 0, int seed_idx = -1);
+                         int steps_since_last_increase, int depth = 0,
+                         int seed_idx = -1);
 
 void check_state_and_recurse(int best_so_far, objects_t *inputstate,
-                             bool last_increase, int depth, int seed_idx) {
+                             int steps_since_last_increase, int depth,
+                             int seed_idx) {
   auto p = steps_still_for_state(inputstate, seed_idx);
   int length = p.first;
   int best_seed_idx = p.second;
   states_checked += 1;
   if (length > best_so_far) {
-    best_frame_length = std::max(best_frame_length, length);
+    most_frames_lasted = std::max(most_frames_lasted, length);
     printf("new best on path = %d, states_checked = %ld, seed_idx = %d, "
            "depth = %d\n",
            length, states_checked, best_seed_idx, depth);
-    check_small_changes(length, inputstate, true, depth + 1, best_seed_idx);
-    bad_calls = 0;
-  } else if(false && bad_calls <= 10){
+    check_small_changes(length, inputstate, 0, depth + 1, best_seed_idx);
+  } else if (false && steps_since_last_increase < 10) {
     // Simulated Annealing: A worse point is accepted probabilistically.
     // double temperature = initial_temperature / pow(2,length);
     double temperature = initial_temperature / (length + 1);
-    double criterion = exp((best_so_far - length) / temperature); // got a seg fault when I used length instead of depth
-    double rnd = randbetween(0.0,1.0); // between 0 and 1
-    if(rnd < criterion){
-      check_small_changes(length, inputstate, true, depth + 1, best_seed_idx);
-    } bad_calls++;
-    /* else if (best_so_far > 120 && length == best_so_far && last_increase) {
-    // only allow neutral moves after the first 120 frames
-    check_small_changes(length, inputstate, false, depth + 1, best_seed_idx);
-  }  */
+    double criterion =
+        exp((best_so_far - length) /
+            temperature); // got a seg fault when I used length instead of depth
+    double rnd = randbetween(0.0, 1.0); // between 0 and 1
+    if (rnd < criterion) {
+      check_small_changes(best_so_far, inputstate,
+                          steps_since_last_increase + 1, depth + 1,
+                          best_seed_idx);
+    } /* else if (best_so_far > 120 && length == best_so_far && last_increase) {
+   // only allow neutral moves after the first 120 frames
+   check_small_changes(best_so_far, inputstate, false, depth + 1,
+ best_seed_idx);
+ }  */
   }
 }
 
 template <class T>
 void all_small_changes_to_field(T *field, int start, int end, int mul_factor,
                                 int add_factor, int best_so_far,
-                                objects_t *inputstate, bool last_increase,
-                                int depth, int seed_idx) {
+                                objects_t *inputstate,
+                                int steps_since_last_increase, int depth,
+                                int seed_idx) {
   for (int i = start; i <= end; i++) {
     int val = i * mul_factor + add_factor;
     if (val == *field) {
@@ -990,14 +1011,15 @@ void all_small_changes_to_field(T *field, int start, int end, int mul_factor,
     }
     auto saved_val = *field;
     *field = val;
-    check_state_and_recurse(best_so_far, inputstate, last_increase, depth,
-                            seed_idx);
+    check_state_and_recurse(best_so_far, inputstate, steps_since_last_increase,
+                            depth, seed_idx);
     *field = saved_val;
   }
 }
 
 void check_small_changes(int best_so_far, objects_t *inputstate,
-                         bool last_increase, int depth, int seed_idx) {
+                         int steps_since_last_increase, int depth,
+                         int seed_idx) {
   inputstate->rcpscog.currentAngularVelocity = 0;
   inputstate->rcpscog.targetAngularVelocity = 0;
   int a;
@@ -1005,8 +1027,8 @@ void check_small_changes(int best_so_far, objects_t *inputstate,
     // inputstate->rotating_blocks[a].max = randbetween<0, 6>() * 20 + 5;
     all_small_changes_to_field(&inputstate->rotating_blocks[a].timer, 0,
                                (inputstate->rotating_blocks[a].max + 40) / 5, 5,
-                               0, best_so_far, inputstate, last_increase, depth,
-                               seed_idx);
+                               0, best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
   }
   for (a = 0; a < 2; a++) {
     // inputstate->rotatingtriangularprisms[a].max = randbetween<0, 6>() * 20
@@ -1015,155 +1037,158 @@ void check_small_changes(int best_so_far, objects_t *inputstate,
     all_small_changes_to_field(
         &inputstate->rotatingtriangularprisms[a].timer, 0,
         (inputstate->rotatingtriangularprisms[a].max + 45) / 5, 5, 0,
-        best_so_far, inputstate, last_increase, depth, seed_idx);
+        best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
   }
   for (a = 0; a < 4; a++) {
     all_small_changes_to_field(&inputstate->pendulums[a].waitingTimer, 0, 34, 1,
-                               0, best_so_far, inputstate, last_increase, depth,
-                               seed_idx);
+                               0, best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
     all_small_changes_to_field(&inputstate->pendulums[a].accelerationDirection,
                                0, 1, 2, -1, best_so_far, inputstate,
-                               last_increase, depth, seed_idx);
+                               steps_since_last_increase, depth, seed_idx);
     all_small_changes_to_field(&inputstate->pendulums[a].angle, 0, 1000, 13,
-                               -6500, best_so_far, inputstate, last_increase,
-                               depth, seed_idx);
+                               -6500, best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
     all_small_changes_to_field(&inputstate->pendulums[a].angularVelocity, 1, 5,
-                               21, -63, best_so_far, inputstate, last_increase,
-                               depth, seed_idx);
+                               21, -63, best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
     all_small_changes_to_field(&inputstate->pendulums[a].accelerationMagnitude,
                                0, 1, 29, 13, best_so_far, inputstate,
-                               last_increase, depth, seed_idx);
+                               steps_since_last_increase, depth, seed_idx);
   }
   all_small_changes_to_field(&inputstate->treadmill.currentSpeed, -5, 5, 10, 0,
-                             best_so_far, inputstate, last_increase, depth,
-                             seed_idx);
+                             best_so_far, inputstate, steps_since_last_increase,
+                             depth, seed_idx);
   all_small_changes_to_field(&inputstate->treadmill.targetSpeed, 0, 1, 100, -50,
-                             best_so_far, inputstate, last_increase, depth,
-                             seed_idx);
+                             best_so_far, inputstate, steps_since_last_increase,
+                             depth, seed_idx);
   // inputstate->treadmill.max = randbetween<0, 6>() * 20 + 10;
-  all_small_changes_to_field(&inputstate->treadmill.counter, 0,
-                             inputstate->treadmill.max / 5, 5, 0, best_so_far,
-                             inputstate, last_increase, depth, seed_idx);
+  all_small_changes_to_field(
+      &inputstate->treadmill.counter, 0, inputstate->treadmill.max / 5, 5, 0,
+      best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
 
   for (a = 0; a < 12; a++) {
     inputstate->pushers[a].max =
         (((unsigned int)pow((randbetween<0, 3>() + 20), 2) - 429) % 107);
     all_small_changes_to_field(&inputstate->pushers[a].countdown, 0, 119, 1, 0,
-                               best_so_far, inputstate, last_increase, depth,
-                               seed_idx);
+                               best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
     all_small_changes_to_field(&inputstate->pushers[a].state, 0, 3, 1, 0,
-                               best_so_far, inputstate, last_increase, depth,
-                               seed_idx);
-    all_small_changes_to_field(&inputstate->pushers[a].state, 0,
-                               inputstate->pushers[a].max, 1, 0, best_so_far,
-                               inputstate, last_increase, depth, seed_idx);
+                               best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
+    all_small_changes_to_field(
+        &inputstate->pushers[a].state, 0, inputstate->pushers[a].max, 1, 0,
+        best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
   }
 
   for (a = 0; a < 4; a++) {
     all_small_changes_to_field(&inputstate->cogs[a].currentAngularVelocity, -24,
                                24, 50, 0, best_so_far, inputstate,
-                               last_increase, depth, seed_idx);
+                               steps_since_last_increase, depth, seed_idx);
     all_small_changes_to_field(&inputstate->cogs[a].targetAngularVelocity, -6,
-                               6, 20, 0, best_so_far, inputstate, last_increase,
-                               depth, seed_idx);
+                               6, 20, 0, best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
   }
   for (a = 0; a < 2; a++) {
     all_small_changes_to_field(
         &inputstate->spinningtriangles[a].currentAngularVelocity, -24, 24, 50,
-        0, best_so_far, inputstate, last_increase, depth, seed_idx);
+        0, best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
     all_small_changes_to_field(
         &inputstate->spinningtriangles[a].targetAngularVelocity, -6, 6, 20, 0,
-        best_so_far, inputstate, last_increase, depth, seed_idx);
+        best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
   }
   all_small_changes_to_field(&inputstate->pitblock.height, 0, 30, 11, -71,
-                             best_so_far, inputstate, last_increase, depth,
-                             seed_idx);
+                             best_so_far, inputstate, steps_since_last_increase,
+                             depth, seed_idx);
   all_small_changes_to_field(&inputstate->pitblock.verticalSpeed, 0, 1, 20, -9,
-                             best_so_far, inputstate, last_increase, depth,
-                             seed_idx);
+                             best_so_far, inputstate, steps_since_last_increase,
+                             depth, seed_idx);
   all_small_changes_to_field(&inputstate->pitblock.state, 0, 1, 1, 0,
-                             best_so_far, inputstate, last_increase, depth,
-                             seed_idx);
+                             best_so_far, inputstate, steps_since_last_increase,
+                             depth, seed_idx);
   // inputstate->pitblock.max = (randbetween<0, 6>() * 20 + 9) % 110 + 1;
-  all_small_changes_to_field(&inputstate->pitblock.counter, 0,
-                             inputstate->pitblock.max, 1, 0, best_so_far,
-                             inputstate, last_increase, depth, seed_idx);
+  all_small_changes_to_field(
+      &inputstate->pitblock.counter, 0, inputstate->pitblock.max, 1, 0,
+      best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
   for (a = 0; a < 2; a++) {
     all_small_changes_to_field(&inputstate->hands[a].angle, -6, 6, 182, 0,
-                               best_so_far, inputstate, last_increase, depth,
-                               seed_idx);
+                               best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
     all_small_changes_to_field(&inputstate->hands[a].targetAngle, -1, 1, 1092,
-                               0, best_so_far, inputstate, last_increase, depth,
-                               seed_idx);
+                               0, best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
     all_small_changes_to_field(&inputstate->hands[a].displacement, 0, 1, 2184,
-                               -1092, best_so_far, inputstate, last_increase,
-                               depth, seed_idx);
+                               -1092, best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
     // inputstate->hands[a].directionTimer =
     //     (randbetween<0, 5>() * 60 + 29) % 270 + 1;
     // inputstate->hands[a].max = randbetween<0, 2>() * 20 + 10;
-    all_small_changes_to_field(&inputstate->hands[a].timer, 0,
-                               inputstate->hands[a].max, 1, 0, best_so_far,
-                               inputstate, last_increase, depth, seed_idx);
+    all_small_changes_to_field(
+        &inputstate->hands[a].timer, 0, inputstate->hands[a].max, 1, 0,
+        best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
   }
   for (a = 0; a < 14; a++) {
     all_small_changes_to_field(&inputstate->spinners[a].direction, 0, 1, 2, -1,
-                               best_so_far, inputstate, last_increase, depth,
-                               seed_idx);
+                               best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
     // inputstate->spinners[a].max = randbetween<0, 3>() * 30 + 30;
-    all_small_changes_to_field(&inputstate->spinners[a].counter, 0,
-                               inputstate->spinners[a].max, 1, 0, best_so_far,
-                               inputstate, last_increase, depth, seed_idx);
+    all_small_changes_to_field(
+        &inputstate->spinners[a].counter, 0, inputstate->spinners[a].max, 1, 0,
+        best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
   }
   for (a = 0; a < 6; a++) {
     // inputstate->wheels[a].max = randbetween<0, 2>() * 20 + 10;
     all_small_changes_to_field(&inputstate->wheels[a].angle, -14, 14, 234, 0,
-                               best_so_far, inputstate, last_increase, depth,
-                               seed_idx);
+                               best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
     all_small_changes_to_field(&inputstate->wheels[a].targetAngle, -1, 1, 3276,
-                               0, best_so_far, inputstate, last_increase, depth,
-                               seed_idx);
+                               0, best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
     all_small_changes_to_field(&inputstate->wheels[a].displacement, 0, 1,
                                2 * 3276, -3276, best_so_far, inputstate,
-                               last_increase, depth, seed_idx);
+                               steps_since_last_increase, depth, seed_idx);
     // inputstate->wheels[a].directionTimer =
     //     (randbetween<0, 5>() * 60 + 29) % 270 + 1;
-    all_small_changes_to_field(&inputstate->wheels[a].timer, 0,
-                               inputstate->wheels[a].max, 1, 0, best_so_far,
-                               inputstate, last_increase, depth, seed_idx);
+    all_small_changes_to_field(
+        &inputstate->wheels[a].timer, 0, inputstate->wheels[a].max, 1, 0,
+        best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
   }
   for (a = 0; a < 2; a++) {
     // inputstate->elevators[a].max = randbetween<1, 6>() * 30;
-    all_small_changes_to_field(&inputstate->elevators[a].counter, 0,
-                               inputstate->elevators[a].max, 1, 0, best_so_far,
-                               inputstate, last_increase, depth, seed_idx);
+    all_small_changes_to_field(
+        &inputstate->elevators[a].counter, 0, inputstate->elevators[a].max, 1,
+        0, best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
   }
   all_small_changes_to_field(&inputstate->sixthcog.currentAngularVelocity, -24,
-                             24, 50, 0, best_so_far, inputstate, last_increase,
-                             depth, seed_idx);
+                             24, 50, 0, best_so_far, inputstate,
+                             steps_since_last_increase, depth, seed_idx);
   all_small_changes_to_field(&inputstate->sixthcog.targetAngularVelocity, -6, 6,
-                             20, 0, best_so_far, inputstate, last_increase,
-                             depth, seed_idx);
+                             20, 0, best_so_far, inputstate,
+                             steps_since_last_increase, depth, seed_idx);
 
   all_small_changes_to_field(&inputstate->thwomp.height, 6192, 6607, 1, 0,
-                             best_so_far, inputstate, last_increase, depth,
-                             seed_idx);
+                             best_so_far, inputstate, steps_since_last_increase,
+                             depth, seed_idx);
   // inputstate->thwomp.max = randbetween<10, 39>();
-  all_small_changes_to_field(&inputstate->thwomp.counter, 0,
-                             inputstate->thwomp.max, 1, 0, best_so_far,
-                             inputstate, last_increase, depth, seed_idx);
+  all_small_changes_to_field(
+      &inputstate->thwomp.counter, 0, inputstate->thwomp.max, 1, 0, best_so_far,
+      inputstate, steps_since_last_increase, depth, seed_idx);
   all_small_changes_to_field(&inputstate->thwomp.state, 0, 4, 1, 0, best_so_far,
-                             inputstate, last_increase, depth, seed_idx);
-  all_small_changes_to_field(&inputstate->thwomp.verticalSpeed, 0, 104, -4, 0,
-                             best_so_far, inputstate, last_increase, depth,
+                             inputstate, steps_since_last_increase, depth,
                              seed_idx);
+  all_small_changes_to_field(&inputstate->thwomp.verticalSpeed, 0, 104, -4, 0,
+                             best_so_far, inputstate, steps_since_last_increase,
+                             depth, seed_idx);
   for (a = 0; a < 2; a++) {
     all_small_changes_to_field(&inputstate->bobombs[a].blinkingTimer, 0, 15, 1,
-                               0, best_so_far, inputstate, last_increase, depth,
-                               seed_idx);
+                               0, best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
   }
 }
 
-void runsimulation() {
+// pick a random state for each search and find a new state with a small random
+// change to that state
+void runsimulation_randomstates() {
   printf("Running\n");
   // initialize_rand();
   objects_t *currentstartingarray =
@@ -1173,20 +1198,161 @@ void runsimulation() {
     auto p = steps_still_for_state(currentstartingarray);
     int length = p.first;
     int seed_idx = p.second;
-    best_frame_length = std::max(length, best_frame_length);
+    most_frames_lasted = std::max(length, most_frames_lasted);
     states_checked += 1;
     printf("checking top level, best so far is %d, states checked is %ld, "
            "seed_idx = %d\n",
-           best_frame_length, states_checked, seed_idx);
-    check_small_changes(length, currentstartingarray, true, 1, seed_idx);
+           most_frames_lasted, states_checked, seed_idx);
+    check_small_changes(length, currentstartingarray, 0, 1, seed_idx);
   }
   free(currentstartingarray);
 }
 
-int main(int argc, char **argv) {
-  for (int i = 0; i < num_seeds; i++) {
-    rngSeeds[i] = pollRNG();
+void print_waiting_frames(const std::vector<bool> &dust_frames) {
+  printf("\rdust vector is:");
+  for (auto dust : dust_frames) {
+    if (dust) {
+      printf("+");
+    } else {
+      printf("-");
+    }
   }
-  runsimulation();
+}
+
+int steps_still_for_state_add_remove_dust(std::vector<bool> &dust_frames) {
+  objects_t states;
+  // gotten from pannen as the starting rng seed, update if nessasary
+  rngValue = 43517;
+  // wait some amount of frames making dust for some portion of them
+  for (const bool dust : dust_frames) {
+    advanceobjects(&states);
+    if (dust) {
+      pollRNG();
+      pollRNG();
+      pollRNG();
+      pollRNG();
+    }
+  }
+  states.rcpscog.small_enough_movement_so_far = 1;
+  // if the target is bad skip this state
+  if (states.rcpscog.targetAngularVelocity > 200 ||
+      states.rcpscog.targetAngularVelocity < -200) {
+    states.rcpscog.small_enough_movement_so_far = 0;
+  }
+  // if the target is good, but the current is bad, wait untill it is good, and
+  // then try that
+  while (states.rcpscog.currentAngularVelocity > 200 ||
+         states.rcpscog.currentAngularVelocity < -200) {
+    advanceobjects(&states);
+    dust_frames.push_back(false);
+  }
+
+  int a = 0;
+  for (a = 0; a < 1200; a++) {
+    advanceobjects(&states);
+    // printobjectstates(&states);
+    if (states.rcpscog.small_enough_movement_so_far == 0) {
+      return a;
+    }
+  }
+
+  if (states.rcpscog.small_enough_movement_so_far == 1) {
+    printf("cog was still the whole time !!!\n");
+    print_waiting_frames(dust_frames);
+    printf("\n");
+    exit(0);
+  }
+
+  return a;
+}
+void check_small_changes_add_remove_dust(int best_so_far,
+                                         int steps_since_last_increase,
+                                         int depth,
+                                         std::vector<bool> &dust_frames,
+                                         int bad_steps_allowed);
+
+void check_state_and_recurse_add_remove_dust(int best_so_far,
+                                             int steps_since_last_increase,
+                                             int depth,
+                                             std::vector<bool> dust_frames,
+                                             int bad_steps_allowed) {
+  // print_waiting_frames(dust_frames);
+  int length = steps_still_for_state_add_remove_dust(dust_frames);
+  states_checked += 1;
+  if (length > best_so_far) {
+    most_frames_lasted = std::max(most_frames_lasted, length);
+    print_waiting_frames(dust_frames);
+    printf("\nnew best on path = %d, states_checked = %ld, "
+           "depth = %d, most_frames_lasted overall = %d\n",
+           length, states_checked, depth, most_frames_lasted);
+    check_small_changes_add_remove_dust(length, 0, depth + 1, dust_frames,
+                                        bad_steps_allowed);
+  } else if (steps_since_last_increase < bad_steps_allowed) {
+    check_small_changes_add_remove_dust(
+        best_so_far, steps_since_last_increase + 1, depth + 1, dust_frames,
+        bad_steps_allowed);
+  }
+}
+
+void check_small_changes_add_remove_dust(int best_so_far,
+                                         int steps_since_last_increase,
+                                         int depth,
+                                         std::vector<bool> &dust_frames,
+                                         int bad_steps_allowed) {
+  // try flipping each frame
+  for (size_t i = 0; i < dust_frames.size(); i++) {
+    dust_frames[i] = !dust_frames[i];
+    check_state_and_recurse_add_remove_dust(best_so_far,
+                                            steps_since_last_increase, depth,
+                                            dust_frames, bad_steps_allowed);
+    dust_frames[i] = !dust_frames[i];
+  }
+  // try adding a frame either way
+  dust_frames.push_back(true);
+  check_state_and_recurse_add_remove_dust(best_so_far,
+                                          steps_since_last_increase, depth,
+                                          dust_frames, bad_steps_allowed);
+  dust_frames.pop_back();
+  dust_frames.push_back(false);
+  check_state_and_recurse_add_remove_dust(best_so_far,
+                                          steps_since_last_increase, depth,
+                                          dust_frames, bad_steps_allowed);
+  dust_frames.pop_back();
+  // try removing a frame
+  bool back = dust_frames.back();
+  dust_frames.pop_back();
+  check_state_and_recurse_add_remove_dust(best_so_far,
+                                          steps_since_last_increase, depth,
+                                          dust_frames, bad_steps_allowed);
+  dust_frames.push_back(back);
+  // leave it as you found it
+}
+
+// start with state, and a number of frames to stay wait
+// make a new state by changing a state from nothing to dust, dust to nothing,
+// or adding or removing a frame to wait
+void runsimulation_add_remove_dust(int frames_to_wait, int bad_steps_allowed) {
+  printf("Running\n");
+  // initialize_rand();
+
+  std::vector<bool> dust_frames(frames_to_wait);
+  int length = steps_still_for_state_add_remove_dust(dust_frames);
+  states_checked += 1;
+  printf("start is %d\n", length);
+  check_small_changes_add_remove_dust(length, 0, 1, dust_frames,
+                                      bad_steps_allowed);
+}
+
+int main(int argc, char *argv[]) {
+  // for (int i = 0; i < num_seeds; i++) {
+  //   rngSeeds[i] = pollRNG();
+  // }
+  if (argc != 3) {
+    printf("usage\n./rcps <waiting frames> <bad steps allowed>\n");
+    exit(1);
+  }
+  int frames_to_wait = atoi(argv[1]);
+  int bad_steps = atoi(argv[2]);
+  runsimulation_add_remove_dust(frames_to_wait, bad_steps);
   return 0;
 }

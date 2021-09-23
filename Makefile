@@ -1,4 +1,4 @@
-CFLAGS := -Wall -Wextra -O3 -g  -std=c++17   -march=native
+CFLAGS := -Wall -Wextra -O3 -g  -std=c++17   -march=native -fconstexpr-steps=10000000
 
 ifeq ($(INFO), 1) 
 # CFLAGS +=  -Rpass-missed="(inline|loop*)" 

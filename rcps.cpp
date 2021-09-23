@@ -95,7 +95,7 @@ int moveAngleTowards(int currentAngle, int targetAngle, int maxDisplacement) {
 }
 
 /* iterates rng instead of cycling it through a list */
-unsigned short rng_function(unsigned short input) {
+constexpr unsigned short rng_function(unsigned short input) {
   if (input == 0x560A)
     input = 0;
   unsigned short S0 = (unsigned char)input << 8;
@@ -112,10 +112,24 @@ unsigned short rng_function(unsigned short input) {
     input = S1 ^ 0x8180;
   return (unsigned short)input;
 }
+constexpr std::array<unsigned short, 1U << 16> fill_rng_function_table() {
+  std::array<unsigned short, 1U << 16> table = {};
+  for (unsigned int i = 0; i < (1U << 16); i++) {
+    table[i] = rng_function(i);
+  }
+  return table;
+}
+
+constexpr std::array<unsigned short, 1U << 16> rng_function_table =
+    fill_rng_function_table();
 
 /* calls and updates the rng value */
 int pollRNG(unsigned short *rngValue) {
-  *rngValue = rng_function(*rngValue);
+  // *rngValue = rng_function(*rngValue);
+  // if (rng_function(*rngValue) != rng_function_table[*rngValue]) {
+  //   printf("something is wrong\n");
+  // }
+  *rngValue = rng_function_table[*rngValue];
   return (int)*rngValue;
 }
 
@@ -1292,7 +1306,7 @@ void check_small_changes_add_remove_dust(int best_so_far,
 void check_state_and_recurse_add_remove_dust(
     int best_so_far, int steps_since_last_increase, int depth,
     std::vector<bool> dust_frames, int bad_steps_allowed, objects_t states,
-    size_t dust_frame_to_start_with) {
+    size_t dust_frame_to_start_with, size_t last_move_i, size_t last_move_j) {
   // print_waiting_frames(dust_frames);
   int length = steps_still_for_state_add_remove_dust(dust_frames, states,
                                                      dust_frame_to_start_with);
@@ -1301,7 +1315,7 @@ void check_state_and_recurse_add_remove_dust(
     most_frames_lasted = std::max(most_frames_lasted, length);
     if (length > most_frames_lasted - 5) {
       // extra confirm
-      if (true) {
+      if (false) {
         objects_t state_check;
         int check_length =
             steps_still_for_state_add_remove_dust(dust_frames, state_check, 0);
@@ -1313,6 +1327,9 @@ void check_state_and_recurse_add_remove_dust(
       printf("\nnew best on path = %d, states_checked = %ld, "
              "depth = %d, most_frames_lasted overall = %d\n",
              length, states_checked, depth, most_frames_lasted);
+    }
+    if (false) {
+      printf("last move was %zu, %zu\n", last_move_i, last_move_j);
     }
     check_small_changes_add_remove_dust(length, 0, depth + 1, dust_frames,
                                         bad_steps_allowed);
@@ -1339,17 +1356,20 @@ void check_small_changes_add_remove_dust(int best_so_far,
     dust_frames[i] = !dust_frames[i];
     check_state_and_recurse_add_remove_dust(
         best_so_far, steps_since_last_increase, depth, dust_frames,
-        bad_steps_allowed, state, i);
+        bad_steps_allowed, state, i, i, i);
+
+    size_t biggest_move_size = 5;
 
     // then try moving a later frame to this frame
-    for (size_t j = i + 1; j < dust_frames.size(); j++) {
+    for (size_t j = i + 1;
+         j < std::min(dust_frames.size(), i + biggest_move_size); j++) {
       // if its equal to the flipped value, then assume we moved the value
       // and flip the other one
-      if (dust_frames[j] == dust_frames[i]) {
+      if (dust_frames[j] == dust_frames[i] && dust_frames[i]) {
         dust_frames[j] = !dust_frames[j];
         check_state_and_recurse_add_remove_dust(
             best_so_far, steps_since_last_increase, depth, dust_frames,
-            bad_steps_allowed, state, i);
+            bad_steps_allowed, state, i, i, j);
         dust_frames[j] = !dust_frames[j];
       }
     }
@@ -1366,19 +1386,19 @@ void check_small_changes_add_remove_dust(int best_so_far,
   dust_frames.push_back(true);
   check_state_and_recurse_add_remove_dust(
       best_so_far, steps_since_last_increase, depth, dust_frames,
-      bad_steps_allowed, state, dust_frames.size());
+      bad_steps_allowed, state, dust_frames.size(), -1, 1);
   dust_frames.pop_back();
   dust_frames.push_back(false);
   check_state_and_recurse_add_remove_dust(
       best_so_far, steps_since_last_increase, depth, dust_frames,
-      bad_steps_allowed, state, dust_frames.size());
+      bad_steps_allowed, state, dust_frames.size(), -1, -1);
   dust_frames.pop_back();
   // try removing a frame
   bool back = dust_frames.back();
   dust_frames.pop_back();
   check_state_and_recurse_add_remove_dust(
       best_so_far, steps_since_last_increase, depth, dust_frames,
-      bad_steps_allowed, {}, 0);
+      bad_steps_allowed, {}, 0, -1, 0);
   dust_frames.push_back(back);
   // leave it as you found it
 }
@@ -1391,6 +1411,9 @@ void runsimulation_add_remove_dust(int frames_to_wait, int bad_steps_allowed) {
   // initialize_rand();
 
   std::vector<bool> dust_frames(frames_to_wait);
+  // for (size_t i = 0; i < dust_frames.size(); i++) {
+  //   dust_frames[i] = randbetween<0, 1>();
+  // }
   objects_t state;
   int length = steps_still_for_state_add_remove_dust(dust_frames, state, 0);
   states_checked += 1;

@@ -373,14 +373,92 @@ wall. If it extends all the way out, then it eventually comes to a stop and then
 retracts until it's flush with the wall. */
 
 typedef struct pusher_t {
-  int max;       // 1, 12, 55, 100
-  int countdown; //[0,120)
-  int state;     // 0 = flush with wall, 1 = retracted, 2 = extending, 3 =
-                 // retracting
-  int counter;
+  uint8_t max;       // 1, 12, 55, 100
+  uint8_t countdown; //[0,120)
+  uint8_t state;     // 0 = flush with wall, 1 = retracted, 2 = extending, 3 =
+                     // retracting
+  uint8_t counter;
 } pusher_t;
 
-void pusher(pusher_t *p, unsigned short *rngValue) {
+// returns what it should be at the end if there was no rng calls, else sets max
+// to 0
+constexpr pusher_t pusher_precalc(pusher_t p) {
+  if (p.state == 0) { // flush with wall
+    if (p.counter <= p.max) {
+      p.counter++;
+    } else if (p.countdown > 0) {
+      p.countdown--;
+      p.counter++;
+    } else {
+      p.max = 0;
+    }
+  } else if (p.state == 1) { // retracted
+    if (p.counter < 10) {    // waiting
+      p.counter++;
+    } else {
+      if (p.countdown > 0) { // moving back in
+        p.countdown--;
+        p.counter++;
+      } else { // moving back in
+        p.state = 2;
+        p.counter = 0;
+      }
+    }
+  } else if (p.state == 2) { // extending
+    if (p.counter == 0) {    // wait one frame
+      p.counter++;
+    } else if (p.counter == 1) { // either extend out or fake it
+      p.max = 0;
+    } else if (p.counter < 36) { // continue extending out
+      p.counter++;
+    } else { // finished extending out
+      p.state = 3;
+      p.counter = 0;
+    }
+  } else {                // retracting
+    if (p.counter < 82) { // still retracting
+      p.counter++;
+    } else { // finished retracting
+      p.state = 0;
+      p.counter = 0;
+    }
+  }
+  return p;
+}
+constexpr std::array<std::array<std::array<std::array<pusher_t, 240>, 4>, 120>,
+                     4>
+precalc_pusher_table() {
+  std::array<std::array<std::array<std::array<pusher_t, 240>, 4>, 120>, 4>
+      table = {};
+  std::array<uint8_t, 4> maxs = {1, 12, 55, 100};
+  for (size_t max_index = 0; max_index < maxs.size(); max_index++) {
+    for (uint8_t countdown = 0; countdown < 120; countdown++) {
+      for (uint8_t state = 0; state < 4; state++) {
+        for (uint8_t counter = 0; counter < 240; counter++) {
+          pusher_t pusher = {maxs[max_index], countdown, state, counter};
+          table[max_index][countdown][state][counter] = pusher_precalc(pusher);
+        }
+      }
+    }
+  }
+
+  return table;
+}
+
+constexpr auto pusher_precalc_table = precalc_pusher_table();
+
+constexpr std::array<uint8_t, 101> set_up_max_to_max_index_table() {
+  std::array<uint8_t, 101> table = {};
+  table[1] = 0;
+  table[12] = 1;
+  table[55] = 2;
+  table[100] = 3;
+  return table;
+}
+constexpr auto max_to_max_index = set_up_max_to_max_index_table();
+constexpr std::array<uint8_t, 4> max_index_to_max = {1, 12, 55, 100};
+
+void pusher_full(pusher_t *p, unsigned short *rngValue) {
   if (p->state == 0) { // flush with wall
     if (p->counter <= p->max) {
       p->counter++;
@@ -388,8 +466,7 @@ void pusher(pusher_t *p, unsigned short *rngValue) {
       p->countdown--;
       p->counter++;
     } else {
-      p->max = (((unsigned int)pow(((pollRNG(rngValue) % 4) + 20), 2) - 429) %
-                107); // 1, 12, 55, 100
+      p->max = max_index_to_max[pollRNG(rngValue) % 4]; // 1, 12, 55, 100
       // countdown = 0 or [20,120)
       if (pollRNG(rngValue) % 2 == 0) {
         p->countdown =
@@ -434,6 +511,31 @@ void pusher(pusher_t *p, unsigned short *rngValue) {
       p->counter = 0;
     }
   }
+}
+
+void pusher(pusher_t *p, unsigned short *rngValue) {
+  pusher_t quick_check =
+      pusher_precalc_table[max_to_max_index[p->max]][p->countdown][p->state]
+                          [p->counter];
+  if (quick_check.max != 0) {
+    memcpy(p, &quick_check, sizeof(quick_check));
+    return;
+  }
+  // pusher_t starting_state = *p;
+  pusher_full(p, rngValue);
+
+  // if (quick_check.max != 0) {
+  //   if (quick_check.max != p->max || quick_check.countdown != p->countdown ||
+  //       quick_check.state != p->state || quick_check.counter != p->counter) {
+  //     printf("got {%d, %d, %d, %d}, expected {%d, %d, %d, %d}\n",
+  //            quick_check.max, quick_check.countdown, quick_check.state,
+  //            quick_check.counter, p->max, p->countdown, p->state,
+  //            p->counter);
+  //     printf("starting state = {%d, %d, %d, %d}\n", starting_state.max,
+  //            starting_state.countdown, starting_state.state,
+  //            starting_state.counter);
+  //   }
+  // }
 }
 
 /* Rotating block is the cube that rotates around a horizontal axis
@@ -1340,15 +1442,17 @@ void check_state_and_recurse_add_remove_dust(
   }
 }
 
+static long max_states_to_check = std::numeric_limits<int64_t>::max();
+
 void check_small_changes_add_remove_dust(int best_so_far,
                                          int steps_since_last_increase,
                                          int depth,
                                          std::vector<bool> &dust_frames,
                                          int bad_steps_allowed) {
   // // just for helping compare optimizations
-  // if (states_checked >= 1000000) {
-  //   exit(0);
-  // }
+  if (states_checked >= max_states_to_check) {
+    exit(0);
+  }
   objects_t state;
   // gotten from pannen as the starting rng seed, update if nessasary
   for (size_t i = 0; i < dust_frames.size(); i++) {
@@ -1426,12 +1530,15 @@ int main(int argc, char *argv[]) {
   // for (int i = 0; i < num_seeds; i++) {
   //   rngSeeds[i] = pollRNG(rngValue);
   // }
-  if (argc != 3) {
+  if (argc < 3) {
     printf("usage\n./rcps <waiting frames> <bad steps allowed>\n");
     exit(1);
   }
   int frames_to_wait = atoi(argv[1]);
   int bad_steps = atoi(argv[2]);
+  if (argc == 4) {
+    max_states_to_check = atol(argv[3]);
+  }
   runsimulation_add_remove_dust(frames_to_wait, bad_steps);
   return 0;
 }

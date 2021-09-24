@@ -1,4 +1,4 @@
-CFLAGS := -Wall -Wextra -O3 -g  -std=c++17   -march=native -fconstexpr-steps=10000000
+CFLAGS := -Wall -Wextra -O3 -g  -std=c++17   -march=native -fconstexpr-steps=100000000
 
 ifeq ($(INFO), 1) 
 # CFLAGS +=  -Rpass-missed="(inline|loop*)" 
@@ -15,6 +15,15 @@ all: rcps
  
 rcps: rcps.cpp
 	$(CXX) $(CFLAGS) -o $@ rcps.cpp
+
+profile: rcps.cpp
+	$(CXX) $(CFLAGS) -fprofile-instr-generate -o $@ rcps.cpp
+	./profile 200 0 1000000 > /dev/null
+	llvm-profdata-10 merge -output=code.profdata default.profraw
+	
+
+opt: profile
+	$(CXX) $(CFLAGS) -fprofile-instr-use=code.profdata -o $@ rcps.cpp
 
 clean:
 	rm -f rcps

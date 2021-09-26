@@ -223,18 +223,28 @@ will call RNG to determine whether its new direction (up or down) and how long
 until the next possible direction switch. */
 
 typedef struct elevator_t {
-  int max; // = 30, 60, 90, 120, 150, 180
+  // int max; // = 30, 60, 90, 120, 150, 180
+  // starts at 30, 60, 90, 120, 150, 180 and goes down to 0
   int counter;
 
 } elevator_t;
 
+// void elevator(elevator_t *e, unsigned short *rngValue) {
+//   if (e->counter > e->max) {
+//     pollRNG(rngValue);                            // direction call
+//     e->max = ((pollRNG(rngValue) % 6) * 30) + 30; // = 30, 60, 90, 120, 150,
+//     180
+//    e->counter = 0;
+//   }
+//   e->counter++;
+// }
 void elevator(elevator_t *e, unsigned short *rngValue) {
-  if (e->counter > e->max) {
-    pollRNG(rngValue);                            // direction call
-    e->max = ((pollRNG(rngValue) % 6) * 30) + 30; // = 30, 60, 90, 120, 150, 180
-    e->counter = 0;
+  if (e->counter == 0) {
+    pollRNG(rngValue); // direction call
+    e->counter =
+        ((pollRNG(rngValue) % 6) * 30) + 30; // = 30, 60, 90, 120, 150, 180
   }
-  e->counter++;
+  e->counter--;
 }
 
 /* A hand is the long horizontal clock hand that rotates in a circle and that
@@ -543,18 +553,30 @@ void pusher(pusher_t *p, unsigned short *rngValue) {
 determine how long it should wait until the next rotation. Once it has waited
 this long, it begins rotating and the process repeats. */
 
+// typedef struct rotatingblock_t {
+//   int max;   // = 5, 25, 45, 65, 85, 105, 125
+//   int timer; //[0,165]
+// } rotatingblock_t;
+
+// void rotatingblock(rotatingblock_t *rb, unsigned short *rngValue) {
+//   if (rb->timer >= rb->max + 40) { // done waiting
+//     rb->max =
+//         ((pollRNG(rngValue) % 7) * 20) + 5; // = 5, 25, 45, 65, 85, 105, 125
+//     rb->timer = 0;
+//   }
+//   rb->timer++;
+// }
+
 typedef struct rotatingblock_t {
-  int max;   // = 5, 25, 45, 65, 85, 105, 125
-  int timer; //[0,165]
+  int remaining_time; // 45, 65, 85, 105, 125, 145, 165 then counts down to 0
 } rotatingblock_t;
 
 void rotatingblock(rotatingblock_t *rb, unsigned short *rngValue) {
-  if (rb->timer >= rb->max + 40) { // done waiting
-    rb->max =
-        ((pollRNG(rngValue) % 7) * 20) + 5; // = 5, 25, 45, 65, 85, 105, 125
-    rb->timer = 0;
+  if (rb->remaining_time == 0) { // done waiting
+    rb->remaining_time =
+        ((pollRNG(rngValue) % 7) * 20) + 45; // = 5, 25, 45, 65, 85, 105, 125
   }
-  rb->timer++;
+  rb->remaining_time--;
 }
 
 /* Rotating triangular prism is the triangular prism that rotates around a
@@ -586,7 +608,7 @@ the spinner remains still. Then for max-5 frames, the spinner spins in its
 intended direction. Then for 1 frame, the spinner spins counterclockwise. */
 
 typedef struct spinner_t {
-  int direction; // 1 = CCW, -1 = CW
+  // int direction; // 1 = CCW, -1 = CW
   int max;
   int counter;
 } spinner_t;
@@ -594,8 +616,9 @@ typedef struct spinner_t {
 void spinner(spinner_t *sp, unsigned short *rngValue) {
   if (sp->counter > sp->max) {
     // calculate new spin
-    sp->direction = (pollRNG(rngValue) <= 32766) ? -1 : 1; // = -1, 1
-    sp->max = ((pollRNG(rngValue) % 4) * 30) + 30;         // = 30, 60, 90, 120
+    // sp->direction = (pollRNG(rngValue) <= 32766) ? -1 : 1; // = -1, 1
+    pollRNG(rngValue);                             // for direction
+    sp->max = ((pollRNG(rngValue) % 4) * 30) + 30; // = 30, 60, 90, 120
     sp->counter = 0;
   }
   sp->counter++;
@@ -765,8 +788,9 @@ void wheel(wheel_t *w, unsigned short *rngValue) {
 
 // got initial state from pannen, update if nessesary
 using objects_t = struct objects_t {
-  rotatingblock_t rotating_blocks[6] = {{125, 31}, {5, 16},  {25, 6},
-                                        {45, 51},  {65, 71}, {25, 61}};
+  rotatingblock_t rotating_blocks[6] = {{40 + 125 - 31}, {40 + 5 - 16},
+                                        {40 + 25 - 6},   {40 + 45 - 51},
+                                        {40 + 65 - 71},  {40 + 25 - 61}};
   rotatingtriangularprism_t rotatingtriangularprisms[2] = {{125, 126},
                                                            {125, 26}};
   pendulum_t pendulums[4] = {{1, -7155, 26, 13, 0},
@@ -784,15 +808,14 @@ using objects_t = struct objects_t {
   pitblock_t pitblock = {259, -9, 1, 110, 110};
   hand_t hands[2] = {{33704, 50, 33704, -1092, 173, 36},
                      {5344, 50, 5344, -1092, 168, 32}};
-  spinner_t spinners[14] = {
-      {1, 30, 14},   {-1, 30, 24}, {-1, 30, 26}, {1, 120, 116},  {-1, 90, 72},
-      {-1, 120, 6},  {1, 90, 81},  {1, 60, 41},  {-1, 120, 115}, {1, 90, 61},
-      {-1, 120, 13}, {-1, 90, 65}, {-1, 60, 31}, {1, 120, 37}};
+  spinner_t spinners[14] = {{30, 14},  {30, 24}, {30, 26}, {120, 116}, {90, 72},
+                            {120, 6},  {90, 81}, {60, 41}, {120, 115}, {90, 61},
+                            {120, 13}, {90, 65}, {60, 31}, {120, 37}};
   wheel_t wheels[6] = {
       {42016, 50, 42016, 3276, 0, 42},   {12580, 50, 12580, -3276, 81, 45},
       {35416, 50, 35416, -3276, 97, 32}, {48616, 50, 48616, 3276, 49, 42},
       {58744, 30, 58268, -3276, 23, 15}, {40704, 30, 38628, -3276, 84, 7}};
-  elevator_t elevators[2] = {{180, 120}, {150, 106}};
+  elevator_t elevators[2] = {{180 - 120}, {150 - 106}};
   cog_t sixthcog = {50, -800};
   thwomp_t thwomp = {6482, 0, 23, 0, 29};
   bobomb_t bobombs[2] = {{0}, {0}};
@@ -849,9 +872,10 @@ void advanceobjects(objects_t *objects) {
 void randomizearray(objects_t *inputstate) {
   int a;
   for (a = 0; a < 6; a++) {
-    inputstate->rotating_blocks[a].max = randbetween<0, 6>() * 20 + 5;
-    inputstate->rotating_blocks[a].timer =
-        randbetween(0, ((inputstate->rotating_blocks[a].max + 40) / 5) * 5);
+    // inputstate->rotating_blocks[a].max = randbetween<0, 6>() * 20 + 5;
+    // inputstate->rotating_blocks[a].timer =
+    //     randbetween(0, ((inputstate->rotating_blocks[a].max + 40) / 5) * 5);
+    inputstate->rotating_blocks[a].remaining_time = randbetween<0, 165>();
   }
   for (a = 0; a < 2; a++) {
     inputstate->rotatingtriangularprisms[a].max = randbetween<0, 6>() * 20 + 5;
@@ -907,7 +931,7 @@ void randomizearray(objects_t *inputstate) {
     inputstate->hands[a].timer = randbetween(0, inputstate->hands[a].max);
   }
   for (a = 0; a < 14; a++) {
-    inputstate->spinners[a].direction = randbetween<0, 1>() * 2 - 1;
+    // inputstate->spinners[a].direction = randbetween<0, 1>() * 2 - 1;
     inputstate->spinners[a].max = randbetween<0, 3>() * 30 + 30;
     inputstate->spinners[a].counter =
         randbetween(0, inputstate->spinners[a].max);
@@ -922,9 +946,8 @@ void randomizearray(objects_t *inputstate) {
     inputstate->wheels[a].timer = randbetween(0, inputstate->wheels[a].max);
   }
   for (a = 0; a < 2; a++) {
-    inputstate->elevators[a].max = randbetween<1, 6>() * 30;
-    inputstate->elevators[a].counter =
-        randbetween(0, inputstate->elevators[a].max);
+    // inputstate->elevators[a].max = randbetween<1, 6>() * 30;
+    inputstate->elevators[a].counter = randbetween(0, 180);
   }
   inputstate->sixthcog.currentAngularVelocity = randbetween<-24, 24>() * 50;
   inputstate->sixthcog.targetAngularVelocity = randbetween<-6, 6>() * 20;
@@ -941,10 +964,12 @@ void randomizearray(objects_t *inputstate) {
 void printobjectstates(const objects_t *const inputstate) {
   int a;
   for (a = 0; a < 6; a++) {
-    printf("Rotating Block %i max: %i\n", a + 1,
-           inputstate->rotating_blocks[a].max);
-    printf("Rotating Block %i timer: %i\n", a + 1,
-           inputstate->rotating_blocks[a].timer);
+    // printf("Rotating Block %i max: %i\n", a + 1,
+    //        inputstate->rotating_blocks[a].max);
+    // printf("Rotating Block %i timer: %i\n", a + 1,
+    //        inputstate->rotating_blocks[a].timer);
+    printf("Rotating Block %i remaining time: %i\n", a + 1,
+           inputstate->rotating_blocks[a].remaining_time);
   }
   for (a = 0; a < 2; a++) {
     printf("Rotating Triangular Prism %i max: %i\n", a + 1,
@@ -1007,8 +1032,8 @@ void printobjectstates(const objects_t *const inputstate) {
     printf("Hand %i timer: %i \n", a + 1, inputstate->hands[a].timer);
   }
   for (a = 0; a < 14; a++) {
-    printf("Spinner %i direction: %i \n", a + 1,
-           inputstate->spinners[a].direction);
+    // printf("Spinner %i direction: %i \n", a + 1,
+    //        inputstate->spinners[a].direction);
     printf("Spinner %i max: %i \n", a + 1, inputstate->spinners[a].max);
     printf("Spinner %i counter: %i \n", a + 1, inputstate->spinners[a].counter);
   }
@@ -1024,7 +1049,7 @@ void printobjectstates(const objects_t *const inputstate) {
     printf("Wheel %i timer: %i \n", a + 1, inputstate->wheels[a].timer);
   }
   for (a = 0; a < 2; a++) {
-    printf("Elevator %i max: %i \n", a + 1, inputstate->elevators[a].max);
+    // printf("Elevator %i max: %i \n", a + 1, inputstate->elevators[a].max);
     printf("Elevator %i counter: %i \n", a + 1,
            inputstate->elevators[a].counter);
   }
@@ -1159,9 +1184,12 @@ void check_small_changes(int best_so_far, objects_t *inputstate,
   int a;
   for (a = 0; a < 6; a++) {
     // inputstate->rotating_blocks[a].max = randbetween<0, 6>() * 20 + 5;
-    all_small_changes_to_field(&inputstate->rotating_blocks[a].timer, 0,
-                               (inputstate->rotating_blocks[a].max + 40) / 5, 5,
-                               0, best_so_far, inputstate,
+    // all_small_changes_to_field(&inputstate->rotating_blocks[a].timer, 0,
+    //                            (inputstate->rotating_blocks[a].max + 40) / 5,
+    //                            5, 0, best_so_far, inputstate,
+    //                            steps_since_last_increase, depth, seed_idx);
+    all_small_changes_to_field(&inputstate->rotating_blocks[a].remaining_time,
+                               0, 165, 1, 0, best_so_far, inputstate,
                                steps_since_last_increase, depth, seed_idx);
   }
   for (a = 0; a < 2; a++) {
@@ -1262,9 +1290,10 @@ void check_small_changes(int best_so_far, objects_t *inputstate,
         best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
   }
   for (a = 0; a < 14; a++) {
-    all_small_changes_to_field(&inputstate->spinners[a].direction, 0, 1, 2, -1,
-                               best_so_far, inputstate,
-                               steps_since_last_increase, depth, seed_idx);
+    // all_small_changes_to_field(&inputstate->spinners[a].direction, 0, 1, 2,
+    // -1,
+    //                            best_so_far, inputstate,
+    //                            steps_since_last_increase, depth, seed_idx);
     // inputstate->spinners[a].max = randbetween<0, 3>() * 30 + 30;
     all_small_changes_to_field(
         &inputstate->spinners[a].counter, 0, inputstate->spinners[a].max, 1, 0,
@@ -1289,9 +1318,9 @@ void check_small_changes(int best_so_far, objects_t *inputstate,
   }
   for (a = 0; a < 2; a++) {
     // inputstate->elevators[a].max = randbetween<1, 6>() * 30;
-    all_small_changes_to_field(
-        &inputstate->elevators[a].counter, 0, inputstate->elevators[a].max, 1,
-        0, best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
+    all_small_changes_to_field(&inputstate->elevators[a].counter, 0, 180, 1, 0,
+                               best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
   }
   all_small_changes_to_field(&inputstate->sixthcog.currentAngularVelocity, -24,
                              24, 50, 0, best_so_far, inputstate,
@@ -1356,9 +1385,6 @@ void print_waiting_frames(const std::vector<bool> &dust_frames) {
 int steps_still_for_state_add_remove_dust(std::vector<bool> &dust_frames,
                                           objects_t &states,
                                           size_t dust_frame_to_start_with) {
-  // gotten from pannen as the starting rng seed, update if nessasary
-  if (dust_frame_to_start_with == 0) {
-  }
   // wait some amount of frames making dust for some portion of them
   for (size_t i = dust_frame_to_start_with; i < dust_frames.size(); i++) {
     advanceobjects(&states);

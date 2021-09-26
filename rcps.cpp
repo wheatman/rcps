@@ -382,8 +382,10 @@ determine whether it should extend out all the way out or stop flush with the
 wall. If it extends all the way out, then it eventually comes to a stop and then
 retracts until it's flush with the wall. */
 
+constexpr std::array<uint8_t, 4> max_index_to_max = {1, 12, 55, 100};
+
 typedef struct pusher_t {
-  uint8_t max;       // 1, 12, 55, 100
+  uint8_t max_index; // (0,1,2,3) -> (1, 12, 55, 100)
   uint8_t countdown; //[0,120)
   uint8_t state;     // 0 = flush with wall, 1 = retracted, 2 = extending, 3 =
                      // retracting
@@ -394,13 +396,13 @@ typedef struct pusher_t {
 // to 0
 constexpr pusher_t pusher_precalc(pusher_t p) {
   if (p.state == 0) { // flush with wall
-    if (p.counter <= p.max) {
+    if (p.counter <= max_index_to_max[p.max_index]) {
       p.counter++;
     } else if (p.countdown > 0) {
       p.countdown--;
       p.counter++;
     } else {
-      p.max = 0;
+      p.max_index = 255;
     }
   } else if (p.state == 1) { // retracted
     if (p.counter < 10) {    // waiting
@@ -418,7 +420,7 @@ constexpr pusher_t pusher_precalc(pusher_t p) {
     if (p.counter == 0) {    // wait one frame
       p.counter++;
     } else if (p.counter == 1) { // either extend out or fake it
-      p.max = 0;
+      p.max_index = 255;
     } else if (p.counter < 36) { // continue extending out
       p.counter++;
     } else { // finished extending out
@@ -435,17 +437,16 @@ constexpr pusher_t pusher_precalc(pusher_t p) {
   }
   return p;
 }
-constexpr std::array<std::array<std::array<std::array<pusher_t, 240>, 4>, 120>,
+constexpr std::array<std::array<std::array<std::array<pusher_t, 220>, 4>, 120>,
                      4>
 precalc_pusher_table() {
-  std::array<std::array<std::array<std::array<pusher_t, 240>, 4>, 120>, 4>
+  std::array<std::array<std::array<std::array<pusher_t, 220>, 4>, 120>, 4>
       table = {};
-  std::array<uint8_t, 4> maxs = {1, 12, 55, 100};
-  for (size_t max_index = 0; max_index < maxs.size(); max_index++) {
+  for (uint8_t max_index = 0; max_index < 4; max_index++) {
     for (uint8_t countdown = 0; countdown < 120; countdown++) {
       for (uint8_t state = 0; state < 4; state++) {
-        for (uint8_t counter = 0; counter < 240; counter++) {
-          pusher_t pusher = {maxs[max_index], countdown, state, counter};
+        for (uint8_t counter = 0; counter < 220; counter++) {
+          pusher_t pusher = {max_index, countdown, state, counter};
           table[max_index][countdown][state][counter] = pusher_precalc(pusher);
         }
       }
@@ -457,26 +458,15 @@ precalc_pusher_table() {
 
 constexpr auto pusher_precalc_table = precalc_pusher_table();
 
-constexpr std::array<uint8_t, 101> set_up_max_to_max_index_table() {
-  std::array<uint8_t, 101> table = {};
-  table[1] = 0;
-  table[12] = 1;
-  table[55] = 2;
-  table[100] = 3;
-  return table;
-}
-constexpr auto max_to_max_index = set_up_max_to_max_index_table();
-constexpr std::array<uint8_t, 4> max_index_to_max = {1, 12, 55, 100};
-
 void pusher_full(pusher_t *p, unsigned short *rngValue) {
   if (p->state == 0) { // flush with wall
-    if (p->counter <= p->max) {
+    if (p->counter <= max_index_to_max[p->max_index]) {
       p->counter++;
     } else if (p->countdown > 0) {
       p->countdown--;
       p->counter++;
     } else {
-      p->max = max_index_to_max[pollRNG(rngValue) % 4]; // 1, 12, 55, 100
+      p->max_index = pollRNG(rngValue) % 4;
       // countdown = 0 or [20,120)
       if (pollRNG(rngValue) % 2 == 0) {
         p->countdown =
@@ -525,10 +515,9 @@ void pusher_full(pusher_t *p, unsigned short *rngValue) {
 
 void pusher(pusher_t *p, unsigned short *rngValue) {
   pusher_t quick_check =
-      pusher_precalc_table[max_to_max_index[p->max]][p->countdown][p->state]
-                          [p->counter];
-  if (quick_check.max != 0) {
-    memcpy(p, &quick_check, sizeof(quick_check));
+      pusher_precalc_table[p->max_index][p->countdown][p->state][p->counter];
+  if (quick_check.max_index != 255) {
+    *p = quick_check;
     return;
   }
   // pusher_t starting_state = *p;
@@ -798,10 +787,10 @@ using objects_t = struct objects_t {
                              {-1, 5822, 130, 13, 0},
                              {1, -9159, 84, 42, 0}};
   treadmill_t treadmill = {0, -50, 30, 5};
-  pusher_t pushers[12] = {{100, 40, 1, 39}, {55, 0, 3, 82}, {12, 49, 1, 42},
-                          {55, 0, 3, 21},   {100, 0, 3, 5}, {1, 0, 2, 7},
-                          {100, 0, 0, 87},  {55, 0, 3, 5},  {55, 0, 0, 51},
-                          {1, 0, 3, 80},    {1, 0, 3, 63},  {12, 0, 3, 6}};
+  pusher_t pushers[12] = {{3, 40, 1, 39}, {2, 0, 3, 82}, {1, 49, 1, 42},
+                          {2, 0, 3, 21},  {3, 0, 3, 5},  {0, 0, 2, 7},
+                          {3, 0, 0, 87},  {2, 0, 3, 5},  {2, 0, 0, 51},
+                          {0, 0, 3, 80},  {0, 0, 3, 63}, {1, 0, 3, 6}};
   cog_t rcpscog = {150, -200};
   cog_t cogs[4] = {{600, 800}, {-350, -600}, {-300, 1200}, {900, 1000}};
   spinningtriangle_t spinningtriangles[2] = {{150, 0}, {-950, -1000}};
@@ -897,12 +886,11 @@ void randomizearray(objects_t *inputstate) {
   inputstate->treadmill.counter =
       randbetween(0, ((inputstate->treadmill.max) / 5) * 5);
   for (a = 0; a < 12; a++) {
-    inputstate->pushers[a].max =
-        (((unsigned int)pow((randbetween<0, 3>() + 20), 2) - 429) % 107);
+    inputstate->pushers[a].max_index = randbetween<0, 3>();
     inputstate->pushers[a].countdown = randbetween<0, 119>();
     inputstate->pushers[a].state = randbetween<0, 3>();
-    inputstate->pushers[a].counter =
-        randbetween(0, ((inputstate->pushers[a].max) / 5) * 5);
+    inputstate->pushers[a].counter = randbetween(
+        0, ((max_index_to_max[inputstate->pushers[a].max_index]) / 5) * 5);
   }
   inputstate->rcpscog.currentAngularVelocity = 0;
   inputstate->rcpscog.targetAngularVelocity = 0;
@@ -993,7 +981,8 @@ void printobjectstates(const objects_t *const inputstate) {
   printf("Treadmill max: %i\n", inputstate->treadmill.max);
   printf("Treadmill counter: %i\n", inputstate->treadmill.counter);
   for (a = 0; a < 12; a++) {
-    printf("Pusher %i max: %i \n", a + 1, inputstate->pushers[a].max);
+    printf("Pusher %i max: %i \n", a + 1,
+           max_index_to_max[inputstate->pushers[a].max_index]);
     printf("Pusher %i countdown: %i \n", a + 1,
            inputstate->pushers[a].countdown);
     printf("Pusher %i state: %i \n", a + 1, inputstate->pushers[a].state);
@@ -1230,8 +1219,7 @@ void check_small_changes(int best_so_far, objects_t *inputstate,
       best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
 
   for (a = 0; a < 12; a++) {
-    inputstate->pushers[a].max =
-        (((unsigned int)pow((randbetween<0, 3>() + 20), 2) - 429) % 107);
+    inputstate->pushers[a].max_index = randbetween<0, 3>();
     all_small_changes_to_field(&inputstate->pushers[a].countdown, 0, 119, 1, 0,
                                best_so_far, inputstate,
                                steps_since_last_increase, depth, seed_idx);
@@ -1239,8 +1227,9 @@ void check_small_changes(int best_so_far, objects_t *inputstate,
                                best_so_far, inputstate,
                                steps_since_last_increase, depth, seed_idx);
     all_small_changes_to_field(
-        &inputstate->pushers[a].state, 0, inputstate->pushers[a].max, 1, 0,
-        best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
+        &inputstate->pushers[a].state, 0,
+        max_index_to_max[inputstate->pushers[a].max_index], 1, 0, best_so_far,
+        inputstate, steps_since_last_increase, depth, seed_idx);
   }
 
   for (a = 0; a < 4; a++) {

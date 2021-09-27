@@ -26,4 +26,4 @@ opt: profile
 	$(CXX) $(CFLAGS) -fprofile-instr-use=code.profdata -o $@ rcps.cpp
 
 clean:
-	rm -f rcps
+	rm -f rcps profile opt perf.data perf.data.old code.profdata default.profraw

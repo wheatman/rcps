@@ -223,18 +223,28 @@ will call RNG to determine whether its new direction (up or down) and how long
 until the next possible direction switch. */
 
 typedef struct elevator_t {
-  int max; // = 30, 60, 90, 120, 150, 180
+  // int max; // = 30, 60, 90, 120, 150, 180
+  // starts at 30, 60, 90, 120, 150, 180 and goes down to 0
   int counter;
 
 } elevator_t;
 
+// void elevator(elevator_t *e, unsigned short *rngValue) {
+//   if (e->counter > e->max) {
+//     pollRNG(rngValue);                            // direction call
+//     e->max = ((pollRNG(rngValue) % 6) * 30) + 30; // = 30, 60, 90, 120, 150,
+//     180
+//    e->counter = 0;
+//   }
+//   e->counter++;
+// }
 void elevator(elevator_t *e, unsigned short *rngValue) {
-  if (e->counter > e->max) {
-    pollRNG(rngValue);                            // direction call
-    e->max = ((pollRNG(rngValue) % 6) * 30) + 30; // = 30, 60, 90, 120, 150, 180
-    e->counter = 0;
+  if (e->counter == 0) {
+    pollRNG(rngValue); // direction call
+    e->counter =
+        ((pollRNG(rngValue) % 6) * 30) + 30; // = 30, 60, 90, 120, 150, 180
   }
-  e->counter++;
+  e->counter--;
 }
 
 /* A hand is the long horizontal clock hand that rotates in a circle and that
@@ -372,8 +382,10 @@ determine whether it should extend out all the way out or stop flush with the
 wall. If it extends all the way out, then it eventually comes to a stop and then
 retracts until it's flush with the wall. */
 
+constexpr std::array<uint8_t, 4> max_index_to_max = {1, 12, 55, 100};
+
 typedef struct pusher_t {
-  uint8_t max;       // 1, 12, 55, 100
+  uint8_t max_index; // (0,1,2,3) -> (1, 12, 55, 100)
   uint8_t countdown; //[0,120)
   uint8_t state;     // 0 = flush with wall, 1 = retracted, 2 = extending, 3 =
                      // retracting
@@ -384,13 +396,13 @@ typedef struct pusher_t {
 // to 0
 constexpr pusher_t pusher_precalc(pusher_t p) {
   if (p.state == 0) { // flush with wall
-    if (p.counter <= p.max) {
+    if (p.counter <= max_index_to_max[p.max_index]) {
       p.counter++;
     } else if (p.countdown > 0) {
       p.countdown--;
       p.counter++;
     } else {
-      p.max = 0;
+      p.max_index = 255;
     }
   } else if (p.state == 1) { // retracted
     if (p.counter < 10) {    // waiting
@@ -408,7 +420,7 @@ constexpr pusher_t pusher_precalc(pusher_t p) {
     if (p.counter == 0) {    // wait one frame
       p.counter++;
     } else if (p.counter == 1) { // either extend out or fake it
-      p.max = 0;
+      p.max_index = 255;
     } else if (p.counter < 36) { // continue extending out
       p.counter++;
     } else { // finished extending out
@@ -425,17 +437,16 @@ constexpr pusher_t pusher_precalc(pusher_t p) {
   }
   return p;
 }
-constexpr std::array<std::array<std::array<std::array<pusher_t, 240>, 4>, 120>,
+constexpr std::array<std::array<std::array<std::array<pusher_t, 220>, 4>, 120>,
                      4>
 precalc_pusher_table() {
-  std::array<std::array<std::array<std::array<pusher_t, 240>, 4>, 120>, 4>
+  std::array<std::array<std::array<std::array<pusher_t, 220>, 4>, 120>, 4>
       table = {};
-  std::array<uint8_t, 4> maxs = {1, 12, 55, 100};
-  for (size_t max_index = 0; max_index < maxs.size(); max_index++) {
+  for (uint8_t max_index = 0; max_index < 4; max_index++) {
     for (uint8_t countdown = 0; countdown < 120; countdown++) {
       for (uint8_t state = 0; state < 4; state++) {
-        for (uint8_t counter = 0; counter < 240; counter++) {
-          pusher_t pusher = {maxs[max_index], countdown, state, counter};
+        for (uint8_t counter = 0; counter < 220; counter++) {
+          pusher_t pusher = {max_index, countdown, state, counter};
           table[max_index][countdown][state][counter] = pusher_precalc(pusher);
         }
       }
@@ -447,26 +458,15 @@ precalc_pusher_table() {
 
 constexpr auto pusher_precalc_table = precalc_pusher_table();
 
-constexpr std::array<uint8_t, 101> set_up_max_to_max_index_table() {
-  std::array<uint8_t, 101> table = {};
-  table[1] = 0;
-  table[12] = 1;
-  table[55] = 2;
-  table[100] = 3;
-  return table;
-}
-constexpr auto max_to_max_index = set_up_max_to_max_index_table();
-constexpr std::array<uint8_t, 4> max_index_to_max = {1, 12, 55, 100};
-
 void pusher_full(pusher_t *p, unsigned short *rngValue) {
   if (p->state == 0) { // flush with wall
-    if (p->counter <= p->max) {
+    if (p->counter <= max_index_to_max[p->max_index]) {
       p->counter++;
     } else if (p->countdown > 0) {
       p->countdown--;
       p->counter++;
     } else {
-      p->max = max_index_to_max[pollRNG(rngValue) % 4]; // 1, 12, 55, 100
+      p->max_index = pollRNG(rngValue) % 4;
       // countdown = 0 or [20,120)
       if (pollRNG(rngValue) % 2 == 0) {
         p->countdown =
@@ -515,10 +515,9 @@ void pusher_full(pusher_t *p, unsigned short *rngValue) {
 
 void pusher(pusher_t *p, unsigned short *rngValue) {
   pusher_t quick_check =
-      pusher_precalc_table[max_to_max_index[p->max]][p->countdown][p->state]
-                          [p->counter];
-  if (quick_check.max != 0) {
-    memcpy(p, &quick_check, sizeof(quick_check));
+      pusher_precalc_table[p->max_index][p->countdown][p->state][p->counter];
+  if (quick_check.max_index != 255) {
+    *p = quick_check;
     return;
   }
   // pusher_t starting_state = *p;
@@ -543,18 +542,30 @@ void pusher(pusher_t *p, unsigned short *rngValue) {
 determine how long it should wait until the next rotation. Once it has waited
 this long, it begins rotating and the process repeats. */
 
+// typedef struct rotatingblock_t {
+//   int max;   // = 5, 25, 45, 65, 85, 105, 125
+//   int timer; //[0,165]
+// } rotatingblock_t;
+
+// void rotatingblock(rotatingblock_t *rb, unsigned short *rngValue) {
+//   if (rb->timer >= rb->max + 40) { // done waiting
+//     rb->max =
+//         ((pollRNG(rngValue) % 7) * 20) + 5; // = 5, 25, 45, 65, 85, 105, 125
+//     rb->timer = 0;
+//   }
+//   rb->timer++;
+// }
+
 typedef struct rotatingblock_t {
-  int max;   // = 5, 25, 45, 65, 85, 105, 125
-  int timer; //[0,165]
+  int remaining_time; // 45, 65, 85, 105, 125, 145, 165 then counts down to 0
 } rotatingblock_t;
 
 void rotatingblock(rotatingblock_t *rb, unsigned short *rngValue) {
-  if (rb->timer >= rb->max + 40) { // done waiting
-    rb->max =
-        ((pollRNG(rngValue) % 7) * 20) + 5; // = 5, 25, 45, 65, 85, 105, 125
-    rb->timer = 0;
+  if (rb->remaining_time == 0) { // done waiting
+    rb->remaining_time =
+        ((pollRNG(rngValue) % 7) * 20) + 45; // = 5, 25, 45, 65, 85, 105, 125
   }
-  rb->timer++;
+  rb->remaining_time--;
 }
 
 /* Rotating triangular prism is the triangular prism that rotates around a
@@ -586,7 +597,7 @@ the spinner remains still. Then for max-5 frames, the spinner spins in its
 intended direction. Then for 1 frame, the spinner spins counterclockwise. */
 
 typedef struct spinner_t {
-  int direction; // 1 = CCW, -1 = CW
+  // int direction; // 1 = CCW, -1 = CW
   int max;
   int counter;
 } spinner_t;
@@ -594,8 +605,9 @@ typedef struct spinner_t {
 void spinner(spinner_t *sp, unsigned short *rngValue) {
   if (sp->counter > sp->max) {
     // calculate new spin
-    sp->direction = (pollRNG(rngValue) <= 32766) ? -1 : 1; // = -1, 1
-    sp->max = ((pollRNG(rngValue) % 4) * 30) + 30;         // = 30, 60, 90, 120
+    // sp->direction = (pollRNG(rngValue) <= 32766) ? -1 : 1; // = -1, 1
+    pollRNG(rngValue);                             // for direction
+    sp->max = ((pollRNG(rngValue) % 4) * 30) + 30; // = 30, 60, 90, 120
     sp->counter = 0;
   }
   sp->counter++;
@@ -765,8 +777,9 @@ void wheel(wheel_t *w, unsigned short *rngValue) {
 
 // got initial state from pannen, update if nessesary
 using objects_t = struct objects_t {
-  rotatingblock_t rotating_blocks[6] = {{125, 31}, {5, 16},  {25, 6},
-                                        {45, 51},  {65, 71}, {25, 61}};
+  rotatingblock_t rotating_blocks[6] = {{40 + 125 - 31}, {40 + 5 - 16},
+                                        {40 + 25 - 6},   {40 + 45 - 51},
+                                        {40 + 65 - 71},  {40 + 25 - 61}};
   rotatingtriangularprism_t rotatingtriangularprisms[2] = {{125, 126},
                                                            {125, 26}};
   pendulum_t pendulums[4] = {{1, -7155, 26, 13, 0},
@@ -774,25 +787,24 @@ using objects_t = struct objects_t {
                              {-1, 5822, 130, 13, 0},
                              {1, -9159, 84, 42, 0}};
   treadmill_t treadmill = {0, -50, 30, 5};
-  pusher_t pushers[12] = {{100, 40, 1, 39}, {55, 0, 3, 82}, {12, 49, 1, 42},
-                          {55, 0, 3, 21},   {100, 0, 3, 5}, {1, 0, 2, 7},
-                          {100, 0, 0, 87},  {55, 0, 3, 5},  {55, 0, 0, 51},
-                          {1, 0, 3, 80},    {1, 0, 3, 63},  {12, 0, 3, 6}};
+  pusher_t pushers[12] = {{3, 40, 1, 39}, {2, 0, 3, 82}, {1, 49, 1, 42},
+                          {2, 0, 3, 21},  {3, 0, 3, 5},  {0, 0, 2, 7},
+                          {3, 0, 0, 87},  {2, 0, 3, 5},  {2, 0, 0, 51},
+                          {0, 0, 3, 80},  {0, 0, 3, 63}, {1, 0, 3, 6}};
   cog_t rcpscog = {150, -200};
   cog_t cogs[4] = {{600, 800}, {-350, -600}, {-300, 1200}, {900, 1000}};
   spinningtriangle_t spinningtriangles[2] = {{150, 0}, {-950, -1000}};
   pitblock_t pitblock = {259, -9, 1, 110, 110};
   hand_t hands[2] = {{33704, 50, 33704, -1092, 173, 36},
                      {5344, 50, 5344, -1092, 168, 32}};
-  spinner_t spinners[14] = {
-      {1, 30, 14},   {-1, 30, 24}, {-1, 30, 26}, {1, 120, 116},  {-1, 90, 72},
-      {-1, 120, 6},  {1, 90, 81},  {1, 60, 41},  {-1, 120, 115}, {1, 90, 61},
-      {-1, 120, 13}, {-1, 90, 65}, {-1, 60, 31}, {1, 120, 37}};
+  spinner_t spinners[14] = {{30, 14},  {30, 24}, {30, 26}, {120, 116}, {90, 72},
+                            {120, 6},  {90, 81}, {60, 41}, {120, 115}, {90, 61},
+                            {120, 13}, {90, 65}, {60, 31}, {120, 37}};
   wheel_t wheels[6] = {
       {42016, 50, 42016, 3276, 0, 42},   {12580, 50, 12580, -3276, 81, 45},
       {35416, 50, 35416, -3276, 97, 32}, {48616, 50, 48616, 3276, 49, 42},
       {58744, 30, 58268, -3276, 23, 15}, {40704, 30, 38628, -3276, 84, 7}};
-  elevator_t elevators[2] = {{180, 120}, {150, 106}};
+  elevator_t elevators[2] = {{180 - 120}, {150 - 106}};
   cog_t sixthcog = {50, -800};
   thwomp_t thwomp = {6482, 0, 23, 0, 29};
   bobomb_t bobombs[2] = {{0}, {0}};
@@ -849,9 +861,10 @@ void advanceobjects(objects_t *objects) {
 void randomizearray(objects_t *inputstate) {
   int a;
   for (a = 0; a < 6; a++) {
-    inputstate->rotating_blocks[a].max = randbetween<0, 6>() * 20 + 5;
-    inputstate->rotating_blocks[a].timer =
-        randbetween(0, ((inputstate->rotating_blocks[a].max + 40) / 5) * 5);
+    // inputstate->rotating_blocks[a].max = randbetween<0, 6>() * 20 + 5;
+    // inputstate->rotating_blocks[a].timer =
+    //     randbetween(0, ((inputstate->rotating_blocks[a].max + 40) / 5) * 5);
+    inputstate->rotating_blocks[a].remaining_time = randbetween<0, 165>();
   }
   for (a = 0; a < 2; a++) {
     inputstate->rotatingtriangularprisms[a].max = randbetween<0, 6>() * 20 + 5;
@@ -873,12 +886,11 @@ void randomizearray(objects_t *inputstate) {
   inputstate->treadmill.counter =
       randbetween(0, ((inputstate->treadmill.max) / 5) * 5);
   for (a = 0; a < 12; a++) {
-    inputstate->pushers[a].max =
-        (((unsigned int)pow((randbetween<0, 3>() + 20), 2) - 429) % 107);
+    inputstate->pushers[a].max_index = randbetween<0, 3>();
     inputstate->pushers[a].countdown = randbetween<0, 119>();
     inputstate->pushers[a].state = randbetween<0, 3>();
-    inputstate->pushers[a].counter =
-        randbetween(0, ((inputstate->pushers[a].max) / 5) * 5);
+    inputstate->pushers[a].counter = randbetween(
+        0, ((max_index_to_max[inputstate->pushers[a].max_index]) / 5) * 5);
   }
   inputstate->rcpscog.currentAngularVelocity = 0;
   inputstate->rcpscog.targetAngularVelocity = 0;
@@ -907,7 +919,7 @@ void randomizearray(objects_t *inputstate) {
     inputstate->hands[a].timer = randbetween(0, inputstate->hands[a].max);
   }
   for (a = 0; a < 14; a++) {
-    inputstate->spinners[a].direction = randbetween<0, 1>() * 2 - 1;
+    // inputstate->spinners[a].direction = randbetween<0, 1>() * 2 - 1;
     inputstate->spinners[a].max = randbetween<0, 3>() * 30 + 30;
     inputstate->spinners[a].counter =
         randbetween(0, inputstate->spinners[a].max);
@@ -922,9 +934,8 @@ void randomizearray(objects_t *inputstate) {
     inputstate->wheels[a].timer = randbetween(0, inputstate->wheels[a].max);
   }
   for (a = 0; a < 2; a++) {
-    inputstate->elevators[a].max = randbetween<1, 6>() * 30;
-    inputstate->elevators[a].counter =
-        randbetween(0, inputstate->elevators[a].max);
+    // inputstate->elevators[a].max = randbetween<1, 6>() * 30;
+    inputstate->elevators[a].counter = randbetween(0, 180);
   }
   inputstate->sixthcog.currentAngularVelocity = randbetween<-24, 24>() * 50;
   inputstate->sixthcog.targetAngularVelocity = randbetween<-6, 6>() * 20;
@@ -941,10 +952,12 @@ void randomizearray(objects_t *inputstate) {
 void printobjectstates(const objects_t *const inputstate) {
   int a;
   for (a = 0; a < 6; a++) {
-    printf("Rotating Block %i max: %i\n", a + 1,
-           inputstate->rotating_blocks[a].max);
-    printf("Rotating Block %i timer: %i\n", a + 1,
-           inputstate->rotating_blocks[a].timer);
+    // printf("Rotating Block %i max: %i\n", a + 1,
+    //        inputstate->rotating_blocks[a].max);
+    // printf("Rotating Block %i timer: %i\n", a + 1,
+    //        inputstate->rotating_blocks[a].timer);
+    printf("Rotating Block %i remaining time: %i\n", a + 1,
+           inputstate->rotating_blocks[a].remaining_time);
   }
   for (a = 0; a < 2; a++) {
     printf("Rotating Triangular Prism %i max: %i\n", a + 1,
@@ -968,7 +981,8 @@ void printobjectstates(const objects_t *const inputstate) {
   printf("Treadmill max: %i\n", inputstate->treadmill.max);
   printf("Treadmill counter: %i\n", inputstate->treadmill.counter);
   for (a = 0; a < 12; a++) {
-    printf("Pusher %i max: %i \n", a + 1, inputstate->pushers[a].max);
+    printf("Pusher %i max: %i \n", a + 1,
+           max_index_to_max[inputstate->pushers[a].max_index]);
     printf("Pusher %i countdown: %i \n", a + 1,
            inputstate->pushers[a].countdown);
     printf("Pusher %i state: %i \n", a + 1, inputstate->pushers[a].state);
@@ -1007,8 +1021,8 @@ void printobjectstates(const objects_t *const inputstate) {
     printf("Hand %i timer: %i \n", a + 1, inputstate->hands[a].timer);
   }
   for (a = 0; a < 14; a++) {
-    printf("Spinner %i direction: %i \n", a + 1,
-           inputstate->spinners[a].direction);
+    // printf("Spinner %i direction: %i \n", a + 1,
+    //        inputstate->spinners[a].direction);
     printf("Spinner %i max: %i \n", a + 1, inputstate->spinners[a].max);
     printf("Spinner %i counter: %i \n", a + 1, inputstate->spinners[a].counter);
   }
@@ -1024,7 +1038,7 @@ void printobjectstates(const objects_t *const inputstate) {
     printf("Wheel %i timer: %i \n", a + 1, inputstate->wheels[a].timer);
   }
   for (a = 0; a < 2; a++) {
-    printf("Elevator %i max: %i \n", a + 1, inputstate->elevators[a].max);
+    // printf("Elevator %i max: %i \n", a + 1, inputstate->elevators[a].max);
     printf("Elevator %i counter: %i \n", a + 1,
            inputstate->elevators[a].counter);
   }
@@ -1088,6 +1102,8 @@ long states_checked = 0;
 int most_frames_lasted = 0;
 double initial_temperature = 0.125;
 int ticker = 10;
+
+std::map<long, long> found_per_length;
 
 void check_small_changes(int best_so_far, objects_t *inputstate,
                          int steps_since_last_increase, int depth = 0,
@@ -1157,9 +1173,12 @@ void check_small_changes(int best_so_far, objects_t *inputstate,
   int a;
   for (a = 0; a < 6; a++) {
     // inputstate->rotating_blocks[a].max = randbetween<0, 6>() * 20 + 5;
-    all_small_changes_to_field(&inputstate->rotating_blocks[a].timer, 0,
-                               (inputstate->rotating_blocks[a].max + 40) / 5, 5,
-                               0, best_so_far, inputstate,
+    // all_small_changes_to_field(&inputstate->rotating_blocks[a].timer, 0,
+    //                            (inputstate->rotating_blocks[a].max + 40) / 5,
+    //                            5, 0, best_so_far, inputstate,
+    //                            steps_since_last_increase, depth, seed_idx);
+    all_small_changes_to_field(&inputstate->rotating_blocks[a].remaining_time,
+                               0, 165, 1, 0, best_so_far, inputstate,
                                steps_since_last_increase, depth, seed_idx);
   }
   for (a = 0; a < 2; a++) {
@@ -1200,8 +1219,7 @@ void check_small_changes(int best_so_far, objects_t *inputstate,
       best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
 
   for (a = 0; a < 12; a++) {
-    inputstate->pushers[a].max =
-        (((unsigned int)pow((randbetween<0, 3>() + 20), 2) - 429) % 107);
+    inputstate->pushers[a].max_index = randbetween<0, 3>();
     all_small_changes_to_field(&inputstate->pushers[a].countdown, 0, 119, 1, 0,
                                best_so_far, inputstate,
                                steps_since_last_increase, depth, seed_idx);
@@ -1209,8 +1227,9 @@ void check_small_changes(int best_so_far, objects_t *inputstate,
                                best_so_far, inputstate,
                                steps_since_last_increase, depth, seed_idx);
     all_small_changes_to_field(
-        &inputstate->pushers[a].state, 0, inputstate->pushers[a].max, 1, 0,
-        best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
+        &inputstate->pushers[a].state, 0,
+        max_index_to_max[inputstate->pushers[a].max_index], 1, 0, best_so_far,
+        inputstate, steps_since_last_increase, depth, seed_idx);
   }
 
   for (a = 0; a < 4; a++) {
@@ -1260,9 +1279,10 @@ void check_small_changes(int best_so_far, objects_t *inputstate,
         best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
   }
   for (a = 0; a < 14; a++) {
-    all_small_changes_to_field(&inputstate->spinners[a].direction, 0, 1, 2, -1,
-                               best_so_far, inputstate,
-                               steps_since_last_increase, depth, seed_idx);
+    // all_small_changes_to_field(&inputstate->spinners[a].direction, 0, 1, 2,
+    // -1,
+    //                            best_so_far, inputstate,
+    //                            steps_since_last_increase, depth, seed_idx);
     // inputstate->spinners[a].max = randbetween<0, 3>() * 30 + 30;
     all_small_changes_to_field(
         &inputstate->spinners[a].counter, 0, inputstate->spinners[a].max, 1, 0,
@@ -1287,9 +1307,9 @@ void check_small_changes(int best_so_far, objects_t *inputstate,
   }
   for (a = 0; a < 2; a++) {
     // inputstate->elevators[a].max = randbetween<1, 6>() * 30;
-    all_small_changes_to_field(
-        &inputstate->elevators[a].counter, 0, inputstate->elevators[a].max, 1,
-        0, best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
+    all_small_changes_to_field(&inputstate->elevators[a].counter, 0, 180, 1, 0,
+                               best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
   }
   all_small_changes_to_field(&inputstate->sixthcog.currentAngularVelocity, -24,
                              24, 50, 0, best_so_far, inputstate,
@@ -1354,9 +1374,6 @@ void print_waiting_frames(const std::vector<bool> &dust_frames) {
 int steps_still_for_state_add_remove_dust(std::vector<bool> &dust_frames,
                                           objects_t &states,
                                           size_t dust_frame_to_start_with) {
-  // gotten from pannen as the starting rng seed, update if nessasary
-  if (dust_frame_to_start_with == 0) {
-  }
   // wait some amount of frames making dust for some portion of them
   for (size_t i = dust_frame_to_start_with; i < dust_frames.size(); i++) {
     advanceobjects(&states);
@@ -1372,6 +1389,7 @@ int steps_still_for_state_add_remove_dust(std::vector<bool> &dust_frames,
   if (states.rcpscog.targetAngularVelocity > 200 ||
       states.rcpscog.targetAngularVelocity < -200) {
     states.rcpscog.small_enough_movement_so_far = 0;
+    return 0;
   }
   // if the target is good, but the current is bad, wait until it is good, and
   // then try that
@@ -1399,22 +1417,30 @@ int steps_still_for_state_add_remove_dust(std::vector<bool> &dust_frames,
 
   return a;
 }
-void check_small_changes_add_remove_dust(int best_so_far,
-                                         int steps_since_last_increase,
-                                         int depth,
-                                         std::vector<bool> &dust_frames,
-                                         int bad_steps_allowed);
+void check_small_changes_add_remove_dust(
+    int best_so_far, int steps_since_last_increase, int depth,
+    std::vector<std::pair<std::vector<bool>, size_t>> dust_frames_stack,
+    int bad_steps_allowed);
 
 void check_state_and_recurse_add_remove_dust(
     int best_so_far, int steps_since_last_increase, int depth,
-    std::vector<bool> dust_frames, int bad_steps_allowed, objects_t states,
-    size_t dust_frame_to_start_with, size_t last_move_i, size_t last_move_j) {
+    std::vector<bool> dust_frames,
+    std::vector<std::pair<std::vector<bool>, size_t>> dust_frames_stack,
+    int bad_steps_allowed, objects_t states, size_t dust_frame_to_start_with) {
   // print_waiting_frames(dust_frames);
+  for (const auto &pair : dust_frames_stack) {
+    // this is already in the stack somewhere, just skip it
+    if (dust_frames == pair.first) {
+      return;
+    }
+  }
   int length = steps_still_for_state_add_remove_dust(dust_frames, states,
                                                      dust_frame_to_start_with);
+  found_per_length[length]++;
   states_checked += 1;
   if (length > best_so_far) {
     most_frames_lasted = std::max(most_frames_lasted, length);
+    dust_frames_stack.emplace_back(dust_frames, length);
     if (length > most_frames_lasted - 5) {
       // extra confirm
       if (false) {
@@ -1425,42 +1451,67 @@ void check_state_and_recurse_add_remove_dust(
           printf("something is wrong\n");
         }
       }
-      print_waiting_frames(dust_frames);
-      printf("\nnew best on path = %d, states_checked = %ld, "
+      printf("new best on path = %d, states_checked = %ld, "
              "depth = %d, most_frames_lasted overall = %d\n",
              length, states_checked, depth, most_frames_lasted);
+
+      for (const auto &pair : found_per_length) {
+        printf("{%lu, %lu}, ", pair.first, pair.second);
+      }
+      printf("\n");
+      printf("path we took to get here\n");
+      for (const auto &pair : dust_frames_stack) {
+        print_waiting_frames(pair.first);
+        printf("   lasted %zu\n", pair.second);
+      }
+      printf("\n");
     }
-    if (false) {
-      printf("last move was %zu, %zu\n", last_move_i, last_move_j);
-    }
-    check_small_changes_add_remove_dust(length, 0, depth + 1, dust_frames,
+    check_small_changes_add_remove_dust(length, 0, depth + 1, dust_frames_stack,
                                         bad_steps_allowed);
+    // } else if (length == best_so_far && length > 50) {
+    //   most_frames_lasted = std::max(most_frames_lasted, length);
+    //   if (length > most_frames_lasted - 5) {
+    //     print_waiting_frames(dust_frames);
+    //     printf("\nmatching best on path = %d, states_checked = %ld, "
+    //            "depth = %d, most_frames_lasted overall = %d\n",
+    //            length, states_checked, depth, most_frames_lasted);
+    //     for (const auto &pair : found_per_length) {
+    //       printf("{%lu, %lu}, ", pair.first, pair.second);
+    //     }
+    //     printf("\n");
+    //   }
+    //   dust_frames_stack.emplace_back(dust_frames, length);
+    //   check_small_changes_add_remove_dust(length, steps_since_last_increase +
+    //   1,
+    //                                       depth + 1, dust_frames_stack,
+    //                                       bad_steps_allowed);
   } else if (steps_since_last_increase < bad_steps_allowed) {
+    dust_frames_stack.emplace_back(dust_frames, length);
     check_small_changes_add_remove_dust(
-        best_so_far, steps_since_last_increase + 1, depth + 1, dust_frames,
-        bad_steps_allowed);
+        best_so_far, steps_since_last_increase + 1, depth + 1,
+        dust_frames_stack, bad_steps_allowed);
   }
 }
 
 static long max_states_to_check = std::numeric_limits<int64_t>::max();
 
-void check_small_changes_add_remove_dust(int best_so_far,
-                                         int steps_since_last_increase,
-                                         int depth,
-                                         std::vector<bool> &dust_frames,
-                                         int bad_steps_allowed) {
+void check_small_changes_add_remove_dust(
+    int best_so_far, int steps_since_last_increase, int depth,
+    std::vector<std::pair<std::vector<bool>, size_t>> dust_frames_stack,
+    int bad_steps_allowed) {
   // // just for helping compare optimizations
   if (states_checked >= max_states_to_check) {
     exit(0);
   }
   objects_t state;
+  std::vector<bool> dust_frames = dust_frames_stack.back().first;
   // gotten from pannen as the starting rng seed, update if nessasary
   for (size_t i = 0; i < dust_frames.size(); i++) {
     // first try just swapping this frame
     dust_frames[i] = !dust_frames[i];
     check_state_and_recurse_add_remove_dust(
         best_so_far, steps_since_last_increase, depth, dust_frames,
-        bad_steps_allowed, state, i, i, i);
+        dust_frames_stack, bad_steps_allowed, state, i);
 
     size_t biggest_move_size = 5;
 
@@ -1473,7 +1524,7 @@ void check_small_changes_add_remove_dust(int best_so_far,
         dust_frames[j] = !dust_frames[j];
         check_state_and_recurse_add_remove_dust(
             best_so_far, steps_since_last_increase, depth, dust_frames,
-            bad_steps_allowed, state, i, i, j);
+            dust_frames_stack, bad_steps_allowed, state, i);
         dust_frames[j] = !dust_frames[j];
       }
     }
@@ -1490,19 +1541,19 @@ void check_small_changes_add_remove_dust(int best_so_far,
   dust_frames.push_back(true);
   check_state_and_recurse_add_remove_dust(
       best_so_far, steps_since_last_increase, depth, dust_frames,
-      bad_steps_allowed, state, dust_frames.size(), -1, 1);
+      dust_frames_stack, bad_steps_allowed, state, dust_frames.size());
   dust_frames.pop_back();
   dust_frames.push_back(false);
   check_state_and_recurse_add_remove_dust(
       best_so_far, steps_since_last_increase, depth, dust_frames,
-      bad_steps_allowed, state, dust_frames.size(), -1, -1);
+      dust_frames_stack, bad_steps_allowed, state, dust_frames.size());
   dust_frames.pop_back();
   // try removing a frame
   bool back = dust_frames.back();
   dust_frames.pop_back();
   check_state_and_recurse_add_remove_dust(
       best_so_far, steps_since_last_increase, depth, dust_frames,
-      bad_steps_allowed, {}, 0, -1, 0);
+      dust_frames_stack, bad_steps_allowed, {}, 0);
   dust_frames.push_back(back);
   // leave it as you found it
 }
@@ -1516,13 +1567,13 @@ void runsimulation_add_remove_dust(int frames_to_wait, int bad_steps_allowed) {
 
   std::vector<bool> dust_frames(frames_to_wait);
   // for (size_t i = 0; i < dust_frames.size(); i++) {
-  //   dust_frames[i] = randbetween<0, 1>();
+  //   dust_frames[i] = randbetween<0, 10>() == 0;
   // }
   objects_t state;
   int length = steps_still_for_state_add_remove_dust(dust_frames, state, 0);
   states_checked += 1;
   printf("start is %d\n", length);
-  check_small_changes_add_remove_dust(length, 0, 1, dust_frames,
+  check_small_changes_add_remove_dust(length, 0, 1, {{dust_frames, length}},
                                       bad_steps_allowed);
 }
 

@@ -9,12 +9,7 @@
 #include <string.h>
 #include <time.h>
 #include <vector>
-
-/* basic max function. called intmax to distingish from max variable */
-int intmax(int a, int b) { return (a > b ? a : b); }
-
-/* basic min function. called intmin to follow established pattern */
-int intmin(int a, int b) { return (a < b ? a : b); }
+#include <array>
 
 /* Returns an angle between 0 and 65535 inclusive by using mods. */
 int normalize(int angle) { return (((angle % 65536) + 65536) % 65536); }
@@ -66,11 +61,11 @@ int moveNumberTowards(int currentNumber, int targetNumber,
     return currentNumber;
   } else if (currentNumber < targetNumber) { // lower than target
     int diff = targetNumber - currentNumber;
-    int newNumber = currentNumber + intmin(diff, maxDisplacement);
+    int newNumber = currentNumber + std::min(diff, maxDisplacement);
     return newNumber;
   } else { // higher than target
     int diff = currentNumber - targetNumber;
-    int newNumber = currentNumber - intmin(diff, maxDisplacement);
+    int newNumber = currentNumber - std::min(diff, maxDisplacement);
     return newNumber;
   }
 }
@@ -86,9 +81,9 @@ int moveAngleTowards(int currentAngle, int targetAngle, int maxDisplacement) {
     diff = (diff + 65536) % 65536;
     int newAngle;
     if (diff < 32768) { // target is slightly above current
-      newAngle = currentAngle + intmin(diff, maxDisplacement);
+      newAngle = currentAngle + std::min(diff, maxDisplacement);
     } else { // target is slightly below current
-      newAngle = currentAngle - intmin(65536 - diff, maxDisplacement);
+      newAngle = currentAngle - std::min(65536 - diff, maxDisplacement);
     }
     return normalize(newAngle);
   }
@@ -272,7 +267,7 @@ void hand(hand_t *h, unsigned short *rngValue) {
     h->displacement = -1092;
   }
   h->angle = moveAngleTowards(h->angle, h->targetAngle, 200);
-  h->directionTimer = intmax(0, h->directionTimer - 1);
+  h->directionTimer = std::max(0, h->directionTimer - 1);
   if (h->timer > h->max &&
       h->angle == h->targetAngle) { // done waiting and reached target
     h->targetAngle = h->targetAngle + h->displacement;
@@ -351,7 +346,7 @@ typedef struct pitblock_t {
 void pitblock(pitblock_t *p, unsigned short *rngValue) {
   if (p->counter > p->max) { // move
     if (p->state == 0) {     // move up
-      p->height = intmin(-71, p->height + p->verticalSpeed);
+      p->height = std::min(-71, p->height + p->verticalSpeed);
       if (p->height == -71 || p->height == 259) { // reached top
         p->verticalSpeed = -9;
         p->state = 1;
@@ -360,7 +355,7 @@ void pitblock(pitblock_t *p, unsigned short *rngValue) {
             ((pollRNG(rngValue) % 6) * 20) + 10; // = 10, 30, 50, 70, 90, 110
       }
     } else { // move down
-      p->height = intmax(-71, p->height + p->verticalSpeed);
+      p->height = std::max(-71, p->height + p->verticalSpeed);
       if (p->height == -71 || p->height == 259) { // reached bottom
         p->verticalSpeed = 11;
         p->state = 0;
@@ -652,7 +647,7 @@ typedef struct thwomp_t {
 
 void thwomp(thwomp_t *th, unsigned short *rngValue) {
   if (th->state == 0) { // going up
-    th->height = intmin(6607, th->height + 10);
+    th->height = std::min(6607, th->height + 10);
     th->counter++;
     if (th->height == 6607) { // reached top
       th->state = 1;
@@ -670,7 +665,7 @@ void thwomp(thwomp_t *th, unsigned short *rngValue) {
     }
   } else if (th->state == 2) { // going down
     th->verticalSpeed -= 4;
-    th->height = intmax(6192, th->height + th->verticalSpeed);
+    th->height = std::max(6192, th->height + th->verticalSpeed);
     th->counter++;
     if (th->height == 6192) { // reached bottom
       th->verticalSpeed = 0;
@@ -750,7 +745,7 @@ void wheel(wheel_t *w, unsigned short *rngValue) {
     w->displacement = -3276;
   }
   w->angle = moveAngleTowards(w->angle, w->targetAngle, 200);
-  w->directionTimer = intmax(0, w->directionTimer - 1);
+  w->directionTimer = std::max(0, w->directionTimer - 1);
   if (w->timer <= w->max) { // waiting
     w->timer++;
   } else if (w->angle == w->targetAngle) { // done waiting and reached target

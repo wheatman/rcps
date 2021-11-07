@@ -1,9 +1,12 @@
 #include "state_score.hpp"
+#include "unordered_set"
 
 long states_checked = 0;
 int most_frames_lasted = 0;
 std::map<long, long> found_per_length;
 long print_freq = 200000;
+std::unordered_set<std::vector<bool>> stored_dust_vectors;
+unsigned long skipped_states = 0;
 
 void print_waiting_frames(const std::vector<bool> &dust_frames) {
   printf("\rdust vector is:");
@@ -18,8 +21,10 @@ void print_waiting_frames(const std::vector<bool> &dust_frames) {
 
 void print_search_info(const std::vector<std::pair<std::vector<bool>, size_t>>
                            &dust_frames_stack) {
-  printf("states checked = %lu, most_frames_lasted = %d\n", states_checked,
-         most_frames_lasted);
+  printf("states checked = %lu, most_frames_lasted = %d, skipped states = %lu, "
+         "number of stored states = %zu\n",
+         states_checked, most_frames_lasted, skipped_states,
+         stored_dust_vectors.size());
   for (const auto &pair : found_per_length) {
     printf("{%lu, %lu}, ", pair.first, pair.second);
   }
@@ -101,6 +106,13 @@ void check_state_and_recurse_add_remove_dust(
   states_checked += 1;
   if (states_checked % print_freq == 0) {
     print_search_info(dust_frames_stack);
+  }
+  if (length >= best_so_far || length >= 20) {
+    if (stored_dust_vectors.count(dust_frames)) {
+      skipped_states++;
+      return;
+    }
+    stored_dust_vectors.insert(dust_frames);
   }
   if (length > best_so_far) {
     most_frames_lasted = std::max(most_frames_lasted, length);

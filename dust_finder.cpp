@@ -202,12 +202,14 @@ void check_small_changes_add_remove_dust(
       dust_frames_stack, bad_steps_allowed, state, dust_frames.size());
   dust_frames.pop_back();
   // try removing a frame
-  bool back = dust_frames.back();
-  dust_frames.pop_back();
-  check_state_and_recurse_add_remove_dust(
-      best_so_far, steps_since_last_increase, depth, dust_frames,
-      dust_frames_stack, bad_steps_allowed, {}, 0);
-  dust_frames.push_back(back);
+  if (!dust_frames.empty()) {
+    bool back = dust_frames.back();
+    dust_frames.pop_back();
+    check_state_and_recurse_add_remove_dust(
+        best_so_far, steps_since_last_increase, depth, dust_frames,
+        dust_frames_stack, bad_steps_allowed, {}, 0);
+    dust_frames.push_back(back);
+  }
   // leave it as you found it
 }
 std::vector<bool> read_vector_from_string(std::string frames) {

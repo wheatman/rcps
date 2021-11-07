@@ -1,5 +1,7 @@
 #include "state_score.hpp"
 #include "unordered_set"
+#include <chrono>
+#include <iostream>
 
 long states_checked = 0;
 int most_frames_lasted = 0;
@@ -7,6 +9,7 @@ std::map<long, long> found_per_length;
 long print_freq = 200000;
 std::unordered_set<std::vector<bool>> stored_dust_vectors;
 unsigned long skipped_states = 0;
+std::chrono::time_point<std::chrono::system_clock> start_time;
 
 void print_waiting_frames(const std::vector<bool> &dust_frames) {
   printf("\rdust vector is:");
@@ -25,6 +28,11 @@ void print_search_info(const std::vector<std::pair<std::vector<bool>, size_t>>
          "number of stored states = %zu\n",
          states_checked, most_frames_lasted, skipped_states,
          stored_dust_vectors.size());
+  std::cout << "running for "
+            << std::chrono::duration_cast<std::chrono::minutes>(
+                   std::chrono::system_clock::now() - start_time)
+                   .count()
+            << " minutes so far" << std::endl;
   for (const auto &pair : found_per_length) {
     printf("{%lu, %lu}, ", pair.first, pair.second);
   }
@@ -102,7 +110,7 @@ void check_state_and_recurse_add_remove_dust(
   }
   int length = steps_still_for_state_add_remove_dust(dust_frames, states,
                                                      dust_frame_to_start_with);
-  found_per_length[length]++;
+
   states_checked += 1;
   if (states_checked % print_freq == 0) {
     print_search_info(dust_frames_stack);
@@ -114,6 +122,7 @@ void check_state_and_recurse_add_remove_dust(
     }
     stored_dust_vectors.insert(dust_frames);
   }
+  found_per_length[length]++;
   if (length > best_so_far) {
     most_frames_lasted = std::max(most_frames_lasted, length);
     dust_frames_stack.emplace_back(dust_frames, length);
@@ -275,6 +284,7 @@ int main(int argc, char *argv[]) {
            "frequency>\n");
     exit(1);
   }
+  start_time = std::chrono::system_clock::now();
   int frames_to_wait = atoi(argv[1]);
   int bad_steps = atoi(argv[2]);
   print_freq = atoll(argv[3]);

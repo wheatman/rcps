@@ -116,7 +116,7 @@ void check_state_and_recurse_add_remove_dust(
         }
       }
 
-      printf("new best on path = %d depth = %d", length, depth);
+      printf("new best on path = %d depth = %d\n", length, depth);
       print_search_info(dust_frames_stack);
     }
     check_small_changes_add_remove_dust(length, 0, depth + 1, dust_frames_stack,

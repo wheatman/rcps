@@ -1,29 +1,43 @@
-CFLAGS := -Wall -Wextra -O3 -g  -std=c++17   -march=native -fconstexpr-steps=100000000
+
+CXXFLAGS := -Wall -Wextra -O3 -g  -std=c++17   -march=native 
+
+
+
+ifeq ($(CXX),g++)
+  CXXFLAGS += -DGCC=1
+else ifeq ($(CXX),clang++)
+  CXXFLAGS += -fconstexpr-steps=100000000 -DCLANG=1
+else
+  $(error has only been tested with clang++ and g++)
+endif
 
 ifeq ($(INFO), 1) 
 # CFLAGS +=  -Rpass-missed="(inline|loop*)" 
 #CFLAGS += -Rpass="(inline|loop*)" -Rpass-missed="(inline|loop*)" -Rpass-analysis="(inline|loop*)" 
-CFLAGS += -Rpass=.* -Rpass-missed=.* -Rpass-analysis=.* 
+CXXFLAGS += -Rpass=.* -Rpass-missed=.* -Rpass-analysis=.* 
 endif
 
 ifeq ($(SANITIZE),1)
-CFLAGS += -fsanitize=undefined,address -fno-omit-frame-pointer
+CXXFLAGS += -fsanitize=undefined,address -fno-omit-frame-pointer
 endif
 
 
-all: rcps
+all: state_finder dust_finder
  
-rcps: rcps.cpp
-	$(CXX) $(CFLAGS) -o $@ rcps.cpp
+state_finder: state_finder.cpp state_score.hpp
+	$(CXX) $(CXXFLAGS) -o $@ state_finder.cpp
 
-profile: rcps.cpp
-	$(CXX) $(CFLAGS) -fprofile-instr-generate -o $@ rcps.cpp
+dust_finder: dust_finder.cpp state_score.hpp
+	$(CXX) $(CXXFLAGS) -o $@ dust_finder.cpp
+
+profile: dust_finder.cpp
+	$(CXX) $(CXXFLAGS) -fprofile-instr-generate -o $@ dust_finder.cpp
 	./profile 200 0 1000000 > /dev/null
 	llvm-profdata-10 merge -output=code.profdata default.profraw
 	
 
 opt: profile
-	$(CXX) $(CFLAGS) -fprofile-instr-use=code.profdata -o $@ rcps.cpp
+	$(CXX) $(CXXFLAGS) -fprofile-instr-use=code.profdata -o $@ dust_finder.cpp
 
 clean:
-	rm -f rcps profile opt perf.data perf.data.old code.profdata default.profraw
+	rm -f dust_finder state_finder profile opt perf.data perf.data.old code.profdata default.profraw

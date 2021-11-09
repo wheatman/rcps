@@ -376,7 +376,7 @@ int main(int argc, char *argv[]) {
            "frequency>\n");
     exit(1);
   }
-  gen.seed(0);
+  // gen.seed(0);
   start_time = std::chrono::system_clock::now();
   int frames_to_wait = atoi(argv[1]);
   int bad_steps = atoi(argv[2]);

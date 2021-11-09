@@ -1,5 +1,6 @@
 #include "state_score.hpp"
 #include "unordered_set"
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 
@@ -22,8 +23,7 @@ void print_waiting_frames(const std::vector<bool> &dust_frames) {
   }
 }
 
-void print_search_info(const std::vector<std::pair<std::vector<bool>, size_t>>
-                           &dust_frames_stack) {
+void print_search_info() {
   printf("states checked = %lu, most_frames_lasted = %d, skipped states = %lu, "
          "number of stored states = %zu\n",
          states_checked, most_frames_lasted, skipped_states,
@@ -37,17 +37,15 @@ void print_search_info(const std::vector<std::pair<std::vector<bool>, size_t>>
     printf("{%lu, %lu}, ", pair.first, pair.second);
   }
   printf("\n");
-  printf("path we took to get here\n");
-  for (const auto &pair : dust_frames_stack) {
-    print_waiting_frames(pair.first);
-    printf("   lasted %zu\n", pair.second);
-  }
-  printf("\n");
 }
 
-int steps_still_for_state_add_remove_dust(std::vector<bool> &dust_frames,
-                                          objects_t &states,
+int steps_still_for_state_add_remove_dust(std::vector<bool> dust_frames,
+                                          objects_t states,
                                           size_t dust_frame_to_start_with) {
+  states_checked += 1;
+  if (states_checked % print_freq == 0) {
+    print_search_info();
+  }
   // wait some amount of frames making dust for some portion of them
   for (size_t i = dust_frame_to_start_with; i < dust_frames.size(); i++) {
     advanceobjects(&states);
@@ -110,11 +108,6 @@ void check_state_and_recurse_add_remove_dust(
   }
   int length = steps_still_for_state_add_remove_dust(dust_frames, states,
                                                      dust_frame_to_start_with);
-
-  states_checked += 1;
-  if (states_checked % print_freq == 0) {
-    print_search_info(dust_frames_stack);
-  }
   if (length >= best_so_far || length >= 20) {
     if (stored_dust_vectors.count(dust_frames)) {
       skipped_states++;
@@ -138,7 +131,14 @@ void check_state_and_recurse_add_remove_dust(
       }
 
       printf("new best on path = %d depth = %d\n", length, depth);
-      print_search_info(dust_frames_stack);
+      print_search_info();
+      printf("\n");
+      printf("path we took to get here\n");
+      for (const auto &pair : dust_frames_stack) {
+        print_waiting_frames(pair.first);
+        printf("   lasted %zu\n", pair.second);
+      }
+      printf("\n");
     }
     check_small_changes_add_remove_dust(length, 0, depth + 1, dust_frames_stack,
                                         bad_steps_allowed);
@@ -169,6 +169,17 @@ void check_state_and_recurse_add_remove_dust(
 
 static long max_states_to_check = std::numeric_limits<int64_t>::max();
 
+bool worth_keeping_state(int length, int steps_since_last_increase,
+                         int bad_steps_allowed, int best_so_far) {
+  if (length > best_so_far) {
+    return true;
+  }
+  if (steps_since_last_increase < bad_steps_allowed) {
+    return true;
+  }
+  return false;
+}
+
 void check_small_changes_add_remove_dust(
     int best_so_far, int steps_since_last_increase, int depth,
     std::vector<std::pair<std::vector<bool>, size_t>> dust_frames_stack,
@@ -177,15 +188,18 @@ void check_small_changes_add_remove_dust(
   if (states_checked >= max_states_to_check) {
     exit(0);
   }
+  std::vector<std::pair<int, std::vector<bool>>> each_possible_change;
   objects_t state;
   std::vector<bool> dust_frames = dust_frames_stack.back().first;
-  // gotten from pannen as the starting rng seed, update if nessasary
+
   for (size_t i = 0; i < dust_frames.size(); i++) {
     // first try just swapping this frame
     dust_frames[i] = !dust_frames[i];
-    check_state_and_recurse_add_remove_dust(
-        best_so_far, steps_since_last_increase, depth, dust_frames,
-        dust_frames_stack, bad_steps_allowed, state, i);
+    int length = steps_still_for_state_add_remove_dust(dust_frames, state, i);
+    if (worth_keeping_state(length, steps_since_last_increase,
+                            bad_steps_allowed, best_so_far)) {
+      each_possible_change.emplace_back(length, dust_frames);
+    }
 
     size_t biggest_move_size = 5;
 
@@ -196,9 +210,15 @@ void check_small_changes_add_remove_dust(
       // and flip the other one
       if (dust_frames[j] == dust_frames[i] && dust_frames[i]) {
         dust_frames[j] = !dust_frames[j];
-        check_state_and_recurse_add_remove_dust(
-            best_so_far, steps_since_last_increase, depth, dust_frames,
-            dust_frames_stack, bad_steps_allowed, state, i);
+        // check_state_and_recurse_add_remove_dust(
+        //     best_so_far, steps_since_last_increase, depth, dust_frames,
+        //     dust_frames_stack, bad_steps_allowed, state, i);
+        int length =
+            steps_still_for_state_add_remove_dust(dust_frames, state, i);
+        if (worth_keeping_state(length, steps_since_last_increase,
+                                bad_steps_allowed, best_so_far)) {
+          each_possible_change.emplace_back(length, dust_frames);
+        }
         dust_frames[j] = !dust_frames[j];
       }
     }
@@ -211,27 +231,100 @@ void check_small_changes_add_remove_dust(
       pollRNG(&state.rngValue);
     }
   }
-  // try adding a frame either way
-  dust_frames.push_back(true);
-  check_state_and_recurse_add_remove_dust(
-      best_so_far, steps_since_last_increase, depth, dust_frames,
-      dust_frames_stack, bad_steps_allowed, state, dust_frames.size());
-  dust_frames.pop_back();
-  dust_frames.push_back(false);
-  check_state_and_recurse_add_remove_dust(
-      best_so_far, steps_since_last_increase, depth, dust_frames,
-      dust_frames_stack, bad_steps_allowed, state, dust_frames.size());
-  dust_frames.pop_back();
-  // try removing a frame
-  if (!dust_frames.empty()) {
-    bool back = dust_frames.back();
+  {
+    // try adding a frame either way
+    dust_frames.push_back(true);
+    // check_state_and_recurse_add_remove_dust(
+    //     best_so_far, steps_since_last_increase, depth, dust_frames,
+    //     dust_frames_stack, bad_steps_allowed, state, dust_frames.size());
+    int length = steps_still_for_state_add_remove_dust(dust_frames, state,
+                                                       dust_frames.size());
+    if (worth_keeping_state(length, steps_since_last_increase,
+                            bad_steps_allowed, best_so_far)) {
+      each_possible_change.emplace_back(length, dust_frames);
+    }
     dust_frames.pop_back();
-    check_state_and_recurse_add_remove_dust(
-        best_so_far, steps_since_last_increase, depth, dust_frames,
-        dust_frames_stack, bad_steps_allowed, {}, 0);
-    dust_frames.push_back(back);
+    dust_frames.push_back(false);
+    // check_state_and_recurse_add_remove_dust(
+    //     best_so_far, steps_since_last_increase, depth, dust_frames,
+    //     dust_frames_stack, bad_steps_allowed, state, dust_frames.size());
+    length = steps_still_for_state_add_remove_dust(dust_frames, state,
+                                                   dust_frames.size());
+    if (worth_keeping_state(length, steps_since_last_increase,
+                            bad_steps_allowed, best_so_far)) {
+      each_possible_change.emplace_back(length, dust_frames);
+    }
+    dust_frames.pop_back();
+    // try removing a frame
+    if (!dust_frames.empty()) {
+      bool back = dust_frames.back();
+      dust_frames.pop_back();
+      // check_state_and_recurse_add_remove_dust(
+      //     best_so_far, steps_since_last_increase, depth, dust_frames,
+      //     dust_frames_stack, bad_steps_allowed, {}, 0);
+      length = steps_still_for_state_add_remove_dust(dust_frames, {}, 0);
+      if (worth_keeping_state(length, steps_since_last_increase,
+                              bad_steps_allowed, best_so_far)) {
+        each_possible_change.emplace_back(length, dust_frames);
+      }
+      dust_frames.push_back(back);
+    }
   }
-  // leave it as you found it
+  // sort all changes we made into the ones that lasted the longest first
+  std::sort(each_possible_change.begin(), each_possible_change.end(),
+            std::greater<>());
+  // printf("depth =%d, len options = %zu\n", depth,
+  // each_possible_change.size());
+  for (const auto &p : each_possible_change) {
+    int length_lasted = p.first;
+    auto dust_made = p.second;
+    bool skip = false;
+    for (const auto &pair : dust_frames_stack) {
+      // this is already in the stack somewhere, just skip it
+      if (dust_made == pair.first) {
+        skip = true;
+        break;
+      }
+    }
+    if (skip) {
+      continue;
+    }
+    // if we are of non trivial length then check if we already checked this
+    // state and skip it if we have
+    if (length_lasted >= best_so_far || length_lasted >= 20) {
+      if (stored_dust_vectors.count(dust_made)) {
+        skipped_states++;
+        continue;
+      }
+      stored_dust_vectors.insert(dust_made);
+    }
+    found_per_length[length_lasted]++;
+    if (length_lasted > best_so_far) {
+      most_frames_lasted = std::max(most_frames_lasted, length_lasted);
+      dust_frames_stack.emplace_back(dust_made, length_lasted);
+      if (length_lasted > most_frames_lasted - 5) {
+
+        printf("new best on path = %d depth = %d\n", length_lasted, depth);
+        print_search_info();
+        printf("\n");
+        printf("path we took to get here\n");
+        for (const auto &pair : dust_frames_stack) {
+          print_waiting_frames(pair.first);
+          printf("   lasted %zu\n", pair.second);
+        }
+        printf("\n");
+      }
+      check_small_changes_add_remove_dust(length_lasted, 0, depth + 1,
+                                          dust_frames_stack, bad_steps_allowed);
+      dust_frames_stack.pop_back();
+    } else if (steps_since_last_increase < bad_steps_allowed) {
+      dust_frames_stack.emplace_back(dust_made, length_lasted);
+      check_small_changes_add_remove_dust(
+          best_so_far, steps_since_last_increase + 1, depth + 1,
+          dust_frames_stack, bad_steps_allowed);
+      dust_frames_stack.pop_back();
+    }
+  }
 }
 std::vector<bool> read_vector_from_string(std::string frames) {
   std::vector<bool> vec;
@@ -265,7 +358,6 @@ void runsimulation_add_remove_dust(int frames_to_wait, int bad_steps_allowed) {
   while (true) {
     objects_t state;
     int length = steps_still_for_state_add_remove_dust(dust_frames, state, 0);
-    states_checked += 1;
     printf("start is %d\n", length);
     check_small_changes_add_remove_dust(length, 0, 1, {{dust_frames, length}},
                                         bad_steps_allowed);
@@ -284,6 +376,7 @@ int main(int argc, char *argv[]) {
            "frequency>\n");
     exit(1);
   }
+  gen.seed(0);
   start_time = std::chrono::system_clock::now();
   int frames_to_wait = atoi(argv[1]);
   int bad_steps = atoi(argv[2]);

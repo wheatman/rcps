@@ -42,6 +42,9 @@ void print_search_info() {
 int steps_still_for_state_add_remove_dust(std::vector<bool> dust_frames,
                                           objects_t states,
                                           size_t dust_frame_to_start_with) {
+  // printf("scoring state: ");
+  // print_waiting_frames(dust_frames);
+  // printf("\n");
   states_checked += 1;
   if (states_checked % print_freq == 0) {
     print_search_info();
@@ -180,17 +183,14 @@ bool worth_keeping_state(int length, int steps_since_last_increase,
   return false;
 }
 
-void check_small_changes_add_remove_dust(
-    int best_so_far, int steps_since_last_increase, int depth,
-    std::vector<std::pair<std::vector<bool>, size_t>> dust_frames_stack,
-    int bad_steps_allowed) {
-  // // just for helping compare optimizations
-  if (states_checked >= max_states_to_check) {
-    exit(0);
-  }
+std::vector<std::pair<int, std::vector<bool>>>
+score_each_change(std::vector<bool> dust_frames, int steps_since_last_increase,
+                  int bad_steps_allowed, int best_so_far) {
+  // printf("recursing with state: ");
+  // print_waiting_frames(dust_frames);
+  // printf("\n");
   std::vector<std::pair<int, std::vector<bool>>> each_possible_change;
   objects_t state;
-  std::vector<bool> dust_frames = dust_frames_stack.back().first;
 
   for (size_t i = 0; i < dust_frames.size(); i++) {
     // first try just swapping this frame
@@ -270,6 +270,23 @@ void check_small_changes_add_remove_dust(
       dust_frames.push_back(back);
     }
   }
+  return each_possible_change;
+}
+
+void check_small_changes_add_remove_dust(
+    int best_so_far, int steps_since_last_increase, int depth,
+    std::vector<std::pair<std::vector<bool>, size_t>> dust_frames_stack,
+    int bad_steps_allowed) {
+  // // just for helping compare optimizations
+  if (states_checked >= max_states_to_check) {
+    exit(0);
+  }
+
+  std::vector<std::pair<int, std::vector<bool>>> each_possible_change =
+      score_each_change(dust_frames_stack.back().first,
+                        steps_since_last_increase, bad_steps_allowed,
+                        best_so_far);
+
   // sort all changes we made into the ones that lasted the longest first
   std::sort(each_possible_change.begin(), each_possible_change.end(),
             std::greater<>());

@@ -574,16 +574,16 @@ long it should wait until the next rotation. Once it has waited this long, it
 begins rotating and the process repeats. */
 
 typedef struct rotatingtriangularprism_t {
-  int max;   // = 5, 25, 45, 65, 85, 105, 125
+  // int max;   // = 5, 25, 45, 65, 85, 105, 125
   int timer; // [0,170]
 } rotatingtriangularprism_t;
 
 void rotatingtriangularprism(rotatingtriangularprism_t *rtp,
                              unsigned short *rngValue) {
-  if (rtp->timer >= rtp->max + 45) { // done waiting
-    rtp->max =
+  if (rtp->timer >= 170) { // done waiting
+    int max =
         ((pollRNG(rngValue) % 7) * 20) + 5; // = 5, 25, 45, 65, 85, 105, 125
-    rtp->timer = 0;
+    rtp->timer = 125 - max;
   }
   rtp->timer++;
 }
@@ -597,17 +597,17 @@ intended direction. Then for 1 frame, the spinner spins counterclockwise. */
 
 typedef struct spinner_t {
   // int direction; // 1 = CCW, -1 = CW
-  int max;
+  // int max;
   int counter;
 } spinner_t;
 
 void spinner(spinner_t *sp, unsigned short *rngValue) {
-  if (sp->counter > sp->max) {
+  if (sp->counter > 120) {
     // calculate new spin
     // sp->direction = (pollRNG(rngValue) <= 32766) ? -1 : 1; // = -1, 1
     pollRNG(rngValue);                             // for direction
-    sp->max = ((pollRNG(rngValue) % 4) * 30) + 30; // = 30, 60, 90, 120
-    sp->counter = 0;
+    int max = ((pollRNG(rngValue) % 4) * 30) + 30; // = 30, 60, 90, 120
+    sp->counter = 120 - max;
   }
   sp->counter++;
 }
@@ -779,8 +779,8 @@ using objects_t = struct objects_t {
   rotatingblock_t rotating_blocks[6] = {{40 + 125 - 31}, {40 + 5 - 16},
                                         {40 + 25 - 6},   {40 + 45 - 51},
                                         {40 + 65 - 71},  {40 + 25 - 61}};
-  rotatingtriangularprism_t rotatingtriangularprisms[2] = {{125, 126},
-                                                           {125, 26}};
+  rotatingtriangularprism_t rotatingtriangularprisms[2] = {{125 - (125 - 126)},
+                                                           {125 - (125 - 26)}};
   pendulum_t pendulums[4] = {{1, -7155, 26, 13, 0},
                              {1, -1993, 390, 13, 0},
                              {-1, 5822, 130, 13, 0},
@@ -796,9 +796,12 @@ using objects_t = struct objects_t {
   pitblock_t pitblock = {259, -9, 1, 110, 110};
   hand_t hands[2] = {{33704, 50, 33704, -1092, 173, 36},
                      {5344, 50, 5344, -1092, 168, 32}};
-  spinner_t spinners[14] = {{30, 14},  {30, 24}, {30, 26}, {120, 116}, {90, 72},
-                            {120, 6},  {90, 81}, {60, 41}, {120, 115}, {90, 61},
-                            {120, 13}, {90, 65}, {60, 31}, {120, 37}};
+  spinner_t spinners[14] = {
+      {120 - (30 - 14)},   {120 - (30 - 24)},  {120 - (30 - 26)},
+      {120 - (120 - 116)}, {120 - (90 - 72)},  {120 - (120 - 6)},
+      {120 - (90 - 81)},   {120 - (60 - 41)},  {120 - (120 - 115)},
+      {120 - (90 - 61)},   {120 - (120 - 13)}, {120 - (90 - 65)},
+      {120 - (60 - 31)},   {120 - (120 - 37)}};
   wheel_t wheels[6] = {
       {42016, 50, 42016, 3276, 0, 42},   {12580, 50, 12580, -3276, 81, 45},
       {35416, 50, 35416, -3276, 97, 32}, {48616, 50, 48616, 3276, 49, 42},
@@ -866,9 +869,9 @@ void randomizearray(objects_t *inputstate) {
     inputstate->rotating_blocks[a].remaining_time = randbetween<0, 165>();
   }
   for (a = 0; a < 2; a++) {
-    inputstate->rotatingtriangularprisms[a].max = randbetween<0, 6>() * 20 + 5;
-    inputstate->rotatingtriangularprisms[a].timer = randbetween(
-        0, ((inputstate->rotatingtriangularprisms[a].max + 45) / 5) * 5);
+    // inputstate->rotatingtriangularprisms[a].max = randbetween<0, 6>() * 20 +
+    // 5;
+    inputstate->rotatingtriangularprisms[a].timer = randbetween(0, 170);
   }
   for (a = 0; a < 4; a++) {
     inputstate->pendulums[a].waitingTimer = randbetween<0, 34>();
@@ -919,9 +922,8 @@ void randomizearray(objects_t *inputstate) {
   }
   for (a = 0; a < 14; a++) {
     // inputstate->spinners[a].direction = randbetween<0, 1>() * 2 - 1;
-    inputstate->spinners[a].max = randbetween<0, 3>() * 30 + 30;
-    inputstate->spinners[a].counter =
-        randbetween(0, inputstate->spinners[a].max);
+    // inputstate->spinners[a].max = randbetween<0, 3>() * 30 + 30;
+    inputstate->spinners[a].counter = randbetween(0, 120);
   }
   for (a = 0; a < 6; a++) {
     inputstate->wheels[a].max = randbetween<0, 2>() * 20 + 10;
@@ -959,8 +961,8 @@ void printobjectstates(const objects_t *const inputstate) {
            inputstate->rotating_blocks[a].remaining_time);
   }
   for (a = 0; a < 2; a++) {
-    printf("Rotating Triangular Prism %i max: %i\n", a + 1,
-           inputstate->rotatingtriangularprisms[a].max);
+    // printf("Rotating Triangular Prism %i max: %i\n", a + 1,
+    //        inputstate->rotatingtriangularprisms[a].max);
     printf("Rotating Triangular Prism %i timer: %i\n", a + 1,
            inputstate->rotatingtriangularprisms[a].timer);
   }
@@ -1022,7 +1024,7 @@ void printobjectstates(const objects_t *const inputstate) {
   for (a = 0; a < 14; a++) {
     // printf("Spinner %i direction: %i \n", a + 1,
     //        inputstate->spinners[a].direction);
-    printf("Spinner %i max: %i \n", a + 1, inputstate->spinners[a].max);
+    // printf("Spinner %i max: %i \n", a + 1, inputstate->spinners[a].max);
     printf("Spinner %i counter: %i \n", a + 1, inputstate->spinners[a].counter);
   }
   for (a = 0; a < 6; a++) {

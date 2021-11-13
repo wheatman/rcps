@@ -58,11 +58,16 @@ void check_state_and_recurse(int best_so_far, objects_t *inputstate,
   int best_seed_idx = p.second;
   inputstate->rngValue = rng_function_table[best_seed_idx];
   states_checked += 1;
+  if (states_checked >= 1000000) {
+    exit(0);
+  }
   if (length > best_so_far) {
     most_frames_lasted = std::max(most_frames_lasted, length);
-    printf("new best on path = %d, states_checked = %ld, seed_idx = %d, "
-           "depth = %d, best overall is %d\n",
-           length, states_checked, best_seed_idx, depth, most_frames_lasted);
+    if (length >= most_frames_lasted - 10) {
+      printf("new best on path = %d, states_checked = %ld, seed_idx = %d, "
+             "depth = %d, best overall is %d\n",
+             length, states_checked, best_seed_idx, depth, most_frames_lasted);
+    }
     if (length == most_frames_lasted) {
       printobjectstates(inputstate);
     }
@@ -131,10 +136,9 @@ void check_small_changes(int best_so_far, objects_t *inputstate,
     // inputstate->rotatingtriangularprisms[a].max = randbetween<0, 6>() * 20
     // + 5; inputstate->rotatingtriangularprisms[a].timer =
     //     randbetween(0, inputstate->rotatingtriangularprisms[a].max + 45);
-    all_small_changes_to_field(
-        &inputstate->rotatingtriangularprisms[a].timer, 0,
-        (inputstate->rotatingtriangularprisms[a].max + 45) / 5, 5, 0,
-        best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
+    all_small_changes_to_field(&inputstate->rotatingtriangularprisms[a].timer,
+                               0, 170, 1, 0, best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
   }
   for (a = 0; a < 4; a++) {
     all_small_changes_to_field(&inputstate->pendulums[a].waitingTimer, 0, 34, 1,
@@ -230,9 +234,9 @@ void check_small_changes(int best_so_far, objects_t *inputstate,
     //                            best_so_far, inputstate,
     //                            steps_since_last_increase, depth, seed_idx);
     // inputstate->spinners[a].max = randbetween<0, 3>() * 30 + 30;
-    all_small_changes_to_field(
-        &inputstate->spinners[a].counter, 0, inputstate->spinners[a].max, 1, 0,
-        best_so_far, inputstate, steps_since_last_increase, depth, seed_idx);
+    all_small_changes_to_field(&inputstate->spinners[a].counter, 0, 120, 1, 0,
+                               best_so_far, inputstate,
+                               steps_since_last_increase, depth, seed_idx);
   }
   for (a = 0; a < 6; a++) {
     // inputstate->wheels[a].max = randbetween<0, 2>() * 20 + 10;
@@ -308,6 +312,7 @@ void runsimulation_randomstates() {
 }
 
 int main() {
+  // gen.seed(0);
   runsimulation_randomstates();
   return 0;
 }

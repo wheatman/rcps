@@ -1,5 +1,5 @@
 
-CXXFLAGS := -Wall -Wextra -O3 -g  -std=c++17   -march=native 
+CXXFLAGS := -Wall -Wextra -O3 -g  -std=c++20   -march=native 
 
 
 

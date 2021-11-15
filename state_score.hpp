@@ -89,6 +89,8 @@ int moveAngleTowards(int currentAngle, int targetAngle, int maxDisplacement) {
   }
 }
 
+constexpr int num_seeds = 65114;
+
 /* iterates rng instead of cycling it through a list */
 constexpr unsigned short rng_function(unsigned short input) {
   if (input == 0x560A)
@@ -118,6 +120,20 @@ constexpr std::array<unsigned short, 1U << 16> fill_rng_function_table() {
 constexpr std::array<unsigned short, 1U << 16> rng_function_table =
     fill_rng_function_table();
 
+constexpr std::array<unsigned short, 1U << 16>
+fill_backwords_rng_function_table() {
+  std::array<unsigned short, 1U << 16> table = {};
+  int seed = 0;
+  for (unsigned int i = 0; i < num_seeds; i++) {
+    table[rng_function(seed)] = seed;
+    seed = rng_function(seed);
+  }
+  return table;
+}
+
+constexpr std::array<unsigned short, 1U << 16> backwords_rng_function_table =
+    fill_backwords_rng_function_table();
+
 /* calls and updates the rng value */
 int pollRNG(unsigned short *rngValue) {
   // *rngValue = rng_function(*rngValue);
@@ -141,7 +157,8 @@ still update and call RNG just as normal. */
 typedef struct bobomb_t {
   // how deep into the blink the bob-omb is
   // this variable is 0 when the bob-omb is not blinking
-  int blinkingTimer;
+  uint8_t blinkingTimer;
+  auto operator<=>(const bobomb_t &) const = default;
 } bobomb_t;
 
 void bobomb(bobomb_t *b, unsigned short *rngValue) {
@@ -163,10 +180,11 @@ by the current angular velocity. When the current angular velocity reaches
 the target angular velocity, a new target angular velocity is calculated. */
 
 typedef struct cog_t {
-  int currentAngularVelocity; // = -1200, -1150, ... , 1150, 1200
-  int targetAngularVelocity;  // = -1200, -1000, ... , 1000, 1200
-  int last_target = 0;
-  int small_enough_movement_so_far = true;
+  int16_t currentAngularVelocity; // = -1200, -1150, ... , 1150, 1200
+  int16_t targetAngularVelocity;  // = -1200, -1000, ... , 1000, 1200
+  int16_t last_target = 0;
+  bool small_enough_movement_so_far = true;
+  auto operator<=>(const cog_t &) const = default;
 } cog_t;
 
 void cog(cog_t *c, unsigned short *rngValue) {
@@ -220,7 +238,8 @@ until the next possible direction switch. */
 typedef struct elevator_t {
   // int max; // = 30, 60, 90, 120, 150, 180
   // starts at 30, 60, 90, 120, 150, 180 and goes down to 0
-  int counter;
+  uint8_t counter;
+  auto operator<=>(const elevator_t &) const = default;
 
 } elevator_t;
 
@@ -254,11 +273,12 @@ timer will be). */
 
 typedef struct hand_t {
   int angle;
-  int max;
   int targetAngle;
-  int displacement;
-  int directionTimer;
-  int timer;
+  int16_t max;
+  int16_t displacement;
+  int16_t directionTimer;
+  int16_t timer;
+  auto operator<=>(const hand_t &) const = default;
 } hand_t;
 
 void hand(hand_t *h, unsigned short *rngValue) {
@@ -296,11 +316,12 @@ with that acceleration. Once it crosses strictly past the vertical (i.e. angle
 the pendulum decelerates by that same acceleration until it comes to a stop. */
 
 typedef struct pendulum_t {
-  int accelerationDirection;
   int angle;
   int angularVelocity;
-  int accelerationMagnitude;
-  int waitingTimer;
+  int8_t accelerationDirection;
+  int8_t accelerationMagnitude;
+  int8_t waitingTimer;
+  auto operator<=>(const pendulum_t &) const = default;
 } pendulum_t;
 
 void pendulum(pendulum_t *p, unsigned short *rngValue) {
@@ -336,11 +357,12 @@ determine how long it should wait for. It does not do this at the bottom,
 since the time it waits there is always 20 frames. */
 
 typedef struct pitblock_t {
-  int height;
-  int verticalSpeed;
-  int state; // 0 = going up, 1 = going down
-  int max;
-  int counter;
+  int16_t height;
+  int8_t verticalSpeed;
+  int8_t state; // 0 = going up, 1 = going down
+  int8_t max;
+  int8_t counter;
+  auto operator<=>(const pitblock_t &) const = default;
 } pitblock_t;
 
 void pitblock(pitblock_t *p, unsigned short *rngValue) {
@@ -385,6 +407,7 @@ typedef struct pusher_t {
   uint8_t state;     // 0 = flush with wall, 1 = retracted, 2 = extending, 3 =
                      // retracting
   uint8_t counter;
+  auto operator<=>(const pusher_t &) const = default;
 } pusher_t;
 
 // returns what it should be at the end if there was no rng calls, else sets max
@@ -556,13 +579,16 @@ this long, it begins rotating and the process repeats. */
 // }
 
 typedef struct rotatingblock_t {
-  int remaining_time; // 45, 65, 85, 105, 125, 145, 165 then counts down to 0
+  uint8_t
+      remaining_time; // 45, 65, 85, 105, 125, 145, 165 then counts down to 0
+  auto operator<=>(const rotatingblock_t &) const = default;
+
 } rotatingblock_t;
 
 void rotatingblock(rotatingblock_t *rb, unsigned short *rngValue) {
   if (rb->remaining_time == 0) { // done waiting
     rb->remaining_time =
-        ((pollRNG(rngValue) % 7) * 20) + 45; // = 5, 25, 45, 65, 85, 105, 125
+        ((pollRNG(rngValue) % 7) * 20) + 45; // = 45, 65, 85, 105, 125, 145, 165
   }
   rb->remaining_time--;
 }
@@ -575,7 +601,8 @@ begins rotating and the process repeats. */
 
 typedef struct rotatingtriangularprism_t {
   // int max;   // = 5, 25, 45, 65, 85, 105, 125
-  int timer; // [0,170]
+  uint8_t timer; // [0,170]
+  auto operator<=>(const rotatingtriangularprism_t &) const = default;
 } rotatingtriangularprism_t;
 
 void rotatingtriangularprism(rotatingtriangularprism_t *rtp,
@@ -598,7 +625,8 @@ intended direction. Then for 1 frame, the spinner spins counterclockwise. */
 typedef struct spinner_t {
   // int direction; // 1 = CCW, -1 = CW
   // int max;
-  int counter;
+  uint8_t counter;
+  auto operator<=>(const spinner_t &) const = default;
 } spinner_t;
 
 void spinner(spinner_t *sp, unsigned short *rngValue) {
@@ -616,8 +644,9 @@ void spinner(spinner_t *sp, unsigned short *rngValue) {
 (i.e. changes its yaw). It functions exactly as the cog does. */
 
 typedef struct spinningtriangle_t {
-  int currentAngularVelocity; // = -1200, -1150, ... , 1150, 1200
-  int targetAngularVelocity;  // = -1200, -1000, ... , 1000, 1200
+  int16_t currentAngularVelocity; // = -1200, -1150, ... , 1150, 1200
+  int16_t targetAngularVelocity;  // = -1200, -1000, ... , 1000, 1200
+  auto operator<=>(const spinningtriangle_t &) const = default;
 } spinningtriangle_t;
 
 void spinningtriangle(spinningtriangle_t *st, unsigned short *rngValue) {
@@ -642,11 +671,12 @@ It calls RNG when it reaches the top to determine how long it should wait for,
 and it also does this at the bottom. */
 
 typedef struct thwomp_t {
-  int height;
-  int verticalSpeed;
-  int max;   // [10,40) or [20,30)
-  int state; // 0 = going up, 1 = at top, 2 = going down, 3/4 = at bottom
-  int counter;
+  int16_t height;
+  uint8_t verticalSpeed;
+  int8_t max;   // [10,40) or [20,30)
+  int8_t state; // 0 = going up, 1 = at top, 2 = going down, 3/4 = at bottom
+  int8_t counter;
+  auto operator<=>(const thwomp_t &) const = default;
 } thwomp_t;
 
 void thwomp(thwomp_t *th, unsigned short *rngValue) {
@@ -706,10 +736,11 @@ in that direction for the allotted time, it decelerates to a stop, and the
 process repeats. */
 
 typedef struct treadmill_t {
-  int currentSpeed;
-  int targetSpeed;
-  int max;
-  int counter;
+  int8_t currentSpeed;
+  int8_t targetSpeed;
+  uint8_t max;
+  uint8_t counter;
+  auto operator<=>(const treadmill_t &) const = default;
 } treadmill_t;
 
 void treadmill(treadmill_t *tr, unsigned short *rngValue) {
@@ -736,11 +767,12 @@ the hands do, except that their ticks are greater in magnitude. */
 
 typedef struct wheel_t {
   int angle;
-  int max; // = 10, 30, 50
+  int8_t max; // = 10, 30, 50
   int targetAngle;
   int displacement;
-  int directionTimer; // = 30, 60, 90 or = 90, 150, 210, 270
-  int timer;
+  int16_t directionTimer; // = 30, 60, 90 or = 90, 150, 210, 270
+  int8_t timer;
+  auto operator<=>(const wheel_t &) const = default;
 } wheel_t;
 
 void wheel(wheel_t *w, unsigned short *rngValue) {
@@ -781,10 +813,10 @@ using objects_t = struct objects_t {
                                         {40 + 65 - 71},  {40 + 25 - 61}};
   rotatingtriangularprism_t rotatingtriangularprisms[2] = {{125 - (125 - 126)},
                                                            {125 - (125 - 26)}};
-  pendulum_t pendulums[4] = {{1, -7155, 26, 13, 0},
-                             {1, -1993, 390, 13, 0},
-                             {-1, 5822, 130, 13, 0},
-                             {1, -9159, 84, 42, 0}};
+  pendulum_t pendulums[4] = {{-7155, 26, 1, 13, 0},
+                             {-1993, 390, 1, 13, 0},
+                             {5822, 130, -1, 13, 0},
+                             {-9159, 84, 1, 42, 0}};
   treadmill_t treadmill = {0, -50, 30, 5};
   pusher_t pushers[12] = {{3, 40, 1, 39}, {2, 0, 3, 82}, {1, 49, 1, 42},
                           {2, 0, 3, 21},  {3, 0, 3, 5},  {0, 0, 2, 7},
@@ -794,8 +826,8 @@ using objects_t = struct objects_t {
   cog_t cogs[4] = {{600, 800}, {-350, -600}, {-300, 1200}, {900, 1000}};
   spinningtriangle_t spinningtriangles[2] = {{150, 0}, {-950, -1000}};
   pitblock_t pitblock = {259, -9, 1, 110, 110};
-  hand_t hands[2] = {{33704, 50, 33704, -1092, 173, 36},
-                     {5344, 50, 5344, -1092, 168, 32}};
+  hand_t hands[2] = {{33704, 33704, 50, -1092, 173, 36},
+                     {5344, 5344, 50, -1092, 168, 32}};
   spinner_t spinners[14] = {
       {120 - (30 - 14)},   {120 - (30 - 24)},  {120 - (30 - 26)},
       {120 - (120 - 116)}, {120 - (90 - 72)},  {120 - (120 - 6)},
@@ -811,6 +843,7 @@ using objects_t = struct objects_t {
   thwomp_t thwomp = {6482, 0, 23, 0, 29};
   bobomb_t bobombs[2] = {{0}, {0}};
   unsigned short rngValue = 43517;
+  auto operator<=>(const objects_t &) const = default;
 };
 
 /* moves objects forward one frame */
@@ -967,57 +1000,57 @@ void printobjectstates(const objects_t *const inputstate) {
            inputstate->rotatingtriangularprisms[a].timer);
   }
   for (a = 0; a < 4; a++) {
-    printf("Pendulum %i waiting timer: %i\n", a + 1,
+    printf("Pendulum %i waiting timer: %i, ", a + 1,
            inputstate->pendulums[a].waitingTimer);
-    printf("Pendulum %i acceleration direction: %i\n", a + 1,
+    printf("Pendulum %i acceleration direction: %i, ", a + 1,
            inputstate->pendulums[a].accelerationDirection);
-    printf("Pendulum %i angle: %i\n", a + 1, inputstate->pendulums[a].angle);
-    printf("Pendulum %i angular velocity: %i\n", a + 1,
+    printf("Pendulum %i angle: %i, ", a + 1, inputstate->pendulums[a].angle);
+    printf("Pendulum %i angular velocity: %i, ", a + 1,
            inputstate->pendulums[a].angularVelocity);
     printf("Pendulum %i acceleration magnitude: %i\n", a + 1,
            inputstate->pendulums[a].accelerationMagnitude);
   }
-  printf("Treadmill current speed: %i\n", inputstate->treadmill.currentSpeed);
-  printf("Treadmill target speed: %i\n", inputstate->treadmill.targetSpeed);
-  printf("Treadmill max: %i\n", inputstate->treadmill.max);
+  printf("Treadmill current speed: %i, ", inputstate->treadmill.currentSpeed);
+  printf("Treadmill target speed: %i, ", inputstate->treadmill.targetSpeed);
+  printf("Treadmill max: %i, ", inputstate->treadmill.max);
   printf("Treadmill counter: %i\n", inputstate->treadmill.counter);
   for (a = 0; a < 12; a++) {
-    printf("Pusher %i max: %i \n", a + 1,
+    printf("Pusher %i max: %i, ", a + 1,
            max_index_to_max[inputstate->pushers[a].max_index]);
-    printf("Pusher %i countdown: %i \n", a + 1,
+    printf("Pusher %i countdown: %i, ", a + 1,
            inputstate->pushers[a].countdown);
-    printf("Pusher %i state: %i \n", a + 1, inputstate->pushers[a].state);
-    printf("Pusher %i counter: %i \n", a + 1, inputstate->pushers[a].counter);
+    printf("Pusher %i state: %i, ", a + 1, inputstate->pushers[a].state);
+    printf("Pusher %i counter: %i\n", a + 1, inputstate->pushers[a].counter);
   }
-  printf("Cog current angular velocity: %i \n",
+  printf("Cog current angular velocity: %i, ",
          inputstate->rcpscog.currentAngularVelocity);
   printf("Cog target anvular velocity: %i \n",
          inputstate->rcpscog.targetAngularVelocity);
   for (a = 0; a < 4; a++) {
-    printf("Cogs %i currentAngularVelocity: %i \n", a + 1,
+    printf("Cogs %i currentAngularVelocity: %i, ", a + 1,
            inputstate->cogs[a].currentAngularVelocity);
     printf("Cogs %i targetAngularVelocity: %i \n", a + 1,
            inputstate->cogs[a].targetAngularVelocity);
   }
   for (a = 0; a < 2; a++) {
-    printf("Spinningtriangles %i currentAngularVelocity: %i \n", a + 1,
+    printf("Spinningtriangles %i currentAngularVelocity: %i, ", a + 1,
            inputstate->spinningtriangles[a].currentAngularVelocity);
     printf("Spinningtriangles %i targetAngularVelocity: %i \n", a + 1,
            inputstate->spinningtriangles[a].targetAngularVelocity);
   }
-  printf("Pit Block height: %i \n", inputstate->pitblock.height);
-  printf("Pit Block vertical speed: %i \n", inputstate->pitblock.verticalSpeed);
-  printf("Pit Block state: %i \n", inputstate->pitblock.state);
-  printf("Pit Block max: %i \n", inputstate->pitblock.max);
+  printf("Pit Block height: %i, ", inputstate->pitblock.height);
+  printf("Pit Block vertical speed: %i, ", inputstate->pitblock.verticalSpeed);
+  printf("Pit Block state: %i, ", inputstate->pitblock.state);
+  printf("Pit Block max: %i, ", inputstate->pitblock.max);
   printf("Pit Block counter: %i \n", inputstate->pitblock.counter);
   for (a = 0; a < 2; a++) {
-    printf("Hand %i angle: %i \n", a + 1, inputstate->hands[a].angle);
-    printf("Hand %i max: %i \n", a + 1, inputstate->hands[a].max);
-    printf("Hand %i target angle: %i \n", a + 1,
+    printf("Hand %i angle: %i, ", a + 1, inputstate->hands[a].angle);
+    printf("Hand %i max: %i, ", a + 1, inputstate->hands[a].max);
+    printf("Hand %i target angle: %i, ", a + 1,
            inputstate->hands[a].targetAngle);
-    printf("Hand %i displacement: %i \n", a + 1,
+    printf("Hand %i displacement: %i, ", a + 1,
            inputstate->hands[a].displacement);
-    printf("Hand %i direction timer: %i \n", a + 1,
+    printf("Hand %i direction timer: %i, ", a + 1,
            inputstate->hands[a].directionTimer);
     printf("Hand %i timer: %i \n", a + 1, inputstate->hands[a].timer);
   }
@@ -1028,13 +1061,13 @@ void printobjectstates(const objects_t *const inputstate) {
     printf("Spinner %i counter: %i \n", a + 1, inputstate->spinners[a].counter);
   }
   for (a = 0; a < 6; a++) {
-    printf("Wheel %i max: %i \n", a + 1, inputstate->wheels[a].max);
-    printf("Wheel %i angle: %i \n", a + 1, inputstate->wheels[a].angle);
-    printf("Wheel %i target angle: %i \n", a + 1,
+    printf("Wheel %i max: %i, ", a + 1, inputstate->wheels[a].max);
+    printf("Wheel %i angle: %i, ", a + 1, inputstate->wheels[a].angle);
+    printf("Wheel %i target angle: %i, ", a + 1,
            inputstate->wheels[a].targetAngle);
-    printf("Wheel %i displacement: %i \n", a + 1,
+    printf("Wheel %i displacement: %i, ", a + 1,
            inputstate->wheels[a].displacement);
-    printf("Wheel %i direction timer: %i \n", a + 1,
+    printf("Wheel %i direction timer: %i, ", a + 1,
            inputstate->wheels[a].directionTimer);
     printf("Wheel %i timer: %i \n", a + 1, inputstate->wheels[a].timer);
   }
@@ -1043,14 +1076,14 @@ void printobjectstates(const objects_t *const inputstate) {
     printf("Elevator %i counter: %i \n", a + 1,
            inputstate->elevators[a].counter);
   }
-  printf("Cog current angular velocity: %i \n",
+  printf("Cog current angular velocity: %i, ",
          inputstate->sixthcog.currentAngularVelocity);
   printf("Cog target angular velocity: %i \n",
          inputstate->sixthcog.targetAngularVelocity);
-  printf("Thwomp height: %i \n", inputstate->thwomp.height);
-  printf("Thwomp max: %i \n", inputstate->thwomp.max);
-  printf("Thwomp counter: %i \n", inputstate->thwomp.counter);
-  printf("Thwomp state: %i \n", inputstate->thwomp.state);
+  printf("Thwomp height: %i, ", inputstate->thwomp.height);
+  printf("Thwomp max: %i, ", inputstate->thwomp.max);
+  printf("Thwomp counter: %i, ", inputstate->thwomp.counter);
+  printf("Thwomp state: %i, ", inputstate->thwomp.state);
   printf("Thwomp vertical speed: %i \n", inputstate->thwomp.verticalSpeed);
   for (a = 0; a < 2; a++) {
     printf("Bobomb %i blinking timer: %i \n", a + 1,
